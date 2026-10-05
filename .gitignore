@@ -1,0 +1,6 @@
+# Raw exchange data must never enter the repository (EEX licence; see the collector's NOTICE.md)
+data/
+*.sqlite
+
+.venv/
+.env
