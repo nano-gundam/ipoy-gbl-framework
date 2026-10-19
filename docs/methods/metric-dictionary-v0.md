@@ -1,7 +1,4 @@
-TEST line1
-- item
-
-line3 — Σ×# Metric dictionary v0: screening indicators
+# Metric dictionary v0: screening indicators
 
 Task: PW01-MV-03 · Author: Wenhao Gu · For: Lingyu Qi (implementation) · Status: draft v0, 19 Oct 2026
 Path in repo: `docs/methods/metric-dictionary-v0.md`
