@@ -269,7 +269,7 @@ with first = 2019 and last = 2025, or the first and last years that have data, w
 
 ## 7. Test cases with known answers
 
-These fixtures are small enough to check with a calculator. Lingyu's code should reproduce every number to 1e-6. The numbers are **synthetic**, shaped like an SE3 summer Sunday, and chosen to hit the edge cases (negative hours, a price of exactly 0, midday solar at negative prices).
+These fixtures are small enough to check with a calculator. Lingyu's code should reproduce every number to 1e-6. Fixtures A–D are **synthetic**, shaped like an SE3 summer Sunday, and chosen to hit the edge cases (negative hours, a price of exactly 0, midday solar at negative prices). The last part of this section adds a real SE3 sample.
 
 ### Fixture A: one valid day, 24 local hours
 
@@ -338,20 +338,39 @@ Same days, but day 3 is invalid: then both changes that touch day 3 drop out, on
 - 31 Mar 2024 in Europe/Berlin has 23 hours. 27 Oct 2024 has 25. Both are valid days if all their slots are present.
 - 2024 needs at least 8,609 valid hours out of 8,784 to be a valid year.
 
-### SE3 2024 reference values (still to fill in)
+### SE3 2024 reference values (real data)
 
-The brief asks for one real SE3 number to test against. I could not pull ENTSO-E data from my side, so this part waits for Lingyu's SE3 2024 price file (PW01-CD-07).
+A small real sample, so Lingyu has known answers on ENTSO-E data as well as on the fixtures.
 
-- **Sample.** SE3, local delivery days 27–29 July 2024. That is 72 hours, UTC 2024-07-26 22:00 to 2024-07-29 21:00. I chose it because Sunday 28 July has a seven-hour run of negative prices around midday. That tests sections 2, 3 and 5 on real data in one go.
-- **How.** Run `tests/hand_check_se3_2024.py` on the SE3 2024 price file. It is written separately from the main pipeline on purpose, with plain pandas and no shared code. I then check the printed numbers by hand against the 72 prices and paste them into the table below.
+- **Sample.** SE3 day-ahead prices (ENTSO-E 12.1.D, EUR/MWh), delivery days 27–29 July 2024 in CET/CEST. That is 72 hours, UTC 2024-07-26 22:00 to 2024-07-29 21:00. Read from the Transparency Platform table view on 19 Oct 2026. I chose these days because Sunday 28 July has a seven-hour run of negative prices from 11:00 to 17:00, an hour at exactly 0.00, and a negative night that follows.
+- **File.** The same 72 values are in `tests/fixtures/se3_2024-07-27_29_entsoe.csv` (UTC timestamps, `price_eur_mwh`).
 
-| Indicator (27–29 Jul 2024, SE3) | Value |
-|---|---|
-| Price mean, 72 h | _to fill_ |
-| Hourly std (n − 1) | _to fill_ |
-| Std of daily change (2 changes) | _to fill_ |
-| Negative hours / mean negative price | _to fill_ |
-| Spread 2h / 4h (mean of 3 days) | _to fill_ |
+| Hour (CEST) | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Sat 27 Jul | 19.20 | 18.99 | 19.08 | 19.39 | 19.63 | 19.79 | 20.46 | 20.97 | 21.88 | 22.48 | 21.99 | 21.55 |
+| Sun 28 Jul | 21.75 | 21.32 | 20.76 | 19.60 | 18.98 | 19.90 | 20.97 | 21.68 | 22.14 | 4.99 | 0.00 | −2.43 |
+| Mon 29 Jul | −0.59 | −0.92 | −1.27 | −1.57 | −1.27 | −0.81 | −0.01 | 1.28 | 0.42 | 0.54 | −0.05 | −0.16 |
+
+| Hour (CEST) | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Sat 27 Jul | 20.99 | 17.37 | 17.49 | 20.24 | 20.63 | 20.98 | 21.79 | 22.54 | 22.23 | 21.77 | 21.63 | 20.16 |
+| Sun 28 Jul | −15.04 | −29.80 | −48.69 | −33.53 | −13.28 | −0.26 | 4.97 | 5.83 | 4.97 | 4.91 | 2.68 | −0.10 |
+| Mon 29 Jul | −0.19 | −1.70 | −0.98 | −0.07 | 4.96 | 15.04 | 16.61 | 19.06 | 18.27 | 14.05 | 8.54 | 4.94 |
+
+Expected results, treating these three days as the whole period:
+
+| Indicator | Working | Answer |
+|---|---|---|
+| Price mean, 72 h | 659.67 / 72 | **9.162083** EUR/MWh |
+| Hourly std (n − 1) | | **14.292575** EUR/MWh |
+| Daily means | 493.23 / 24, 72.32 / 24, 94.12 / 24 | 20.551250, 3.013333, 3.921667 |
+| Std of daily change (n − 1) | changes −17.537917 and +0.908333. With two values the std is the gap between them / √2 = 18.446250 / 1.414214 | **13.043468** EUR/MWh |
+| Negative hours | 8 on 28 Jul (11:00–17:00 and 23:00) + 13 on 29 Jul (00:00–06:00 and 10:00–15:00). 28 Jul 10:00 is exactly 0.00 and does not count | **21** |
+| Mean negative price | −152.72 / 21 | **−7.272381** EUR/MWh |
+| Spread 2h per day | 27 Jul: 22.51 − 17.43 = 5.08. 28 Jul: 21.945 − (−41.11) = 63.055. 29 Jul: 18.665 − (−1.635) = 20.30 | mean **29.478333** EUR/MWh |
+| Spread 4h per day | 27 Jul: 22.31 − 18.2325 = 4.0775. 28 Jul: 21.7225 − (−31.765) = 53.4875. 29 Jul: 17.245 − (−1.4525) = 18.6975 | mean **25.420833** EUR/MWh |
+
+`python tests/hand_check_se3_2024.py tests/fixtures/se3_2024-07-27_29_entsoe.csv` prints the same numbers. Lingyu's code, run on the CD-07 SE3 2024 file and cut to these three days, should match them to 1e-6. If it does not, compare the 72 input prices first, then the time zone.
 
 ---
 
