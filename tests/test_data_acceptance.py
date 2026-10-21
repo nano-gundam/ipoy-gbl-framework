@@ -49,7 +49,7 @@ from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_
 # --------------------------------------------------------------------------- #
 # Settings
 # --------------------------------------------------------------------------- #
-CONFIG_DIR = Path(__file__).resolve().parent / "config"
+CONFIG_DIR = Path(__file__).resolve().parent / "data_acceptance_tests"
 LOCAL_TZ = "Europe/Berlin"  # delivery-day time zone for every zone (PW01-CD-04, section 2)
 TIMESTAMP_COLUMNS = ("timestamp_utc", "timestamp", "datetime_utc", "time_utc")
 META_COLUMNS = {  # not data values, so exempt from unit / plausibility rules
