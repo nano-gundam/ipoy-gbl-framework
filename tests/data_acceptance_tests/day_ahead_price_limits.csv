@@ -1,0 +1,4 @@
+valid_from_utc,min_eur_mwh,max_eur_mwh,source
+2018-01-01T00:00:00Z,-500,3000,ACER Decision 04/2017: SDAC harmonised max/min clearing price +3000 / -500 EUR/MWh
+2022-05-10T22:00:00Z,-500,4000,SDAC cap +1000 (60% trigger hit 3 Apr 2022) for delivery from 11 May 2022 (00:00 CEST = 22:00 UTC the day before)
+2022-09-20T22:00:00Z,-500,5000,"SDAC cap +1000 (4000 EUR/MWh in LT/LV/EE on 17 Aug 2022) for delivery from 21 Sep 2022 (Nord Pool operational message 23 Aug 2022). KEPT AT 5000 for all later dates: ACER Decision 01/2023 (10 Jan 2023) and 02/2026 set a 4000 reference value, but the date the cap actually returned to 4000 is not confirmed here, so the limit stays permissive. Market Research to tighten once confirmed."

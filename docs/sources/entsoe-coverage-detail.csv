@@ -1,0 +1,131 @@
+area,country,series,first_available_year,available_year_count,available_years,max_missing_pct,resolution(s),status
+AT,AT,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+AT,AT,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+AT,AT,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+AT,AT,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+AT,AT,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+BE,BE,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+BE,BE,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+BE,BE,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+BE,BE,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+BE,BE,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+CZ,CZ,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+CZ,CZ,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+CZ,CZ,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+CZ,CZ,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+CZ,CZ,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+DE_LU,DE_LU,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+DE_LU,DE_LU,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+DE_LU,DE_LU,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+DE_LU,DE_LU,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+DE_LU,DE_LU,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+DK_1,DK,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+DK_1,DK,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+DK_1,DK,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+DK_1,DK,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0.13,Hourly,PASS
+DK_1,DK,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+DK_2,DK,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+DK_2,DK,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+DK_2,DK,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+DK_2,DK,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0.13,Hourly,PASS
+DK_2,DK,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+EE,EE,day_ahead_prices,2019,6,"2019, 2020, 2021, 2022, 2024, 2025",0,Hourly,PASS
+EE,EE,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+EE,EE,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+EE,EE,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+EE,EE,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+ES,ES,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+ES,ES,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+ES,ES,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+ES,ES,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+ES,ES,installed_capacity,2019,6,"2019, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+FI,FI,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+FI,FI,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+FI,FI,solar_generation,2023,3,"2023, 2024, 2025",0,15-minute; Hourly,FAIL: <6 years
+FI,FI,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+FI,FI,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+FR,FR,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+FR,FR,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+FR,FR,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+FR,FR,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",2.02,15-minute; Hourly,PASS
+FR,FR,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+HU,HU,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+HU,HU,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+HU,HU,solar_generation,2020,6,"2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+HU,HU,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+HU,HU,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+IE_SEM,IE,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+IE_SEM,IE,wind_generation,,0,,,,FAIL: no confirmed data
+IE_SEM,IE,solar_generation,,0,,,,FAIL: no confirmed data
+IE_SEM,IE,total_load,,0,,,,FAIL: no confirmed data
+IE_SEM,IE,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+LT,LT,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+LT,LT,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+LT,LT,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+LT,LT,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+LT,LT,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+LV,LV,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+LV,LV,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+LV,LV,solar_generation,2024,2,"2024, 2025",0,Hourly,FAIL: <6 years
+LV,LV,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+LV,LV,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+NL,NL,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NL,NL,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+NL,NL,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+NL,NL,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute,PASS
+NL,NL,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+NO_1,NO,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_1,NO,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_1,NO,solar_generation,2025,1,2025,0,Hourly,FAIL: <6 years
+NO_1,NO,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_1,NO,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+NO_2,NO,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_2,NO,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_2,NO,solar_generation,,0,,,,FAIL: no confirmed data
+NO_2,NO,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_2,NO,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+NO_3,NO,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_3,NO,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_3,NO,solar_generation,,0,,,,FAIL: no confirmed data
+NO_3,NO,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_3,NO,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+NO_4,NO,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_4,NO,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_4,NO,solar_generation,,0,,,,FAIL: no confirmed data
+NO_4,NO,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_4,NO,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+NO_5,NO,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_5,NO,wind_generation,2019,2,"2019, 2020",0,Hourly,FAIL: <6 years
+NO_5,NO,solar_generation,,0,,,,FAIL: no confirmed data
+NO_5,NO,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+NO_5,NO,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+PL,PL,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+PL,PL,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+PL,PL,solar_generation,2021,5,"2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,FAIL: <6 years
+PL,PL,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,15-minute; Hourly,PASS
+PL,PL,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+PT,PT,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+PT,PT,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+PT,PT,solar_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+PT,PT,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+PT,PT,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+SE_1,SE,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_1,SE,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_1,SE,solar_generation,2022,4,"2022, 2023, 2024, 2025",0,Hourly,FAIL: <6 years
+SE_1,SE,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_1,SE,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+SE_2,SE,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_2,SE,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_2,SE,solar_generation,2022,4,"2022, 2023, 2024, 2025",0,Hourly,FAIL: <6 years
+SE_2,SE,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_2,SE,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+SE_3,SE,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_3,SE,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_3,SE,solar_generation,2022,4,"2022, 2023, 2024, 2025",0,Hourly,FAIL: <6 years
+SE_3,SE,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_3,SE,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
+SE_4,SE,day_ahead_prices,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_4,SE,wind_generation,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_4,SE,solar_generation,2022,4,"2022, 2023, 2024, 2025",0,Hourly,FAIL: <6 years
+SE_4,SE,total_load,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",0,Hourly,PASS
+SE_4,SE,installed_capacity,2019,7,"2019, 2020, 2021, 2022, 2023, 2024, 2025",,Snapshot/periodic,PASS
