@@ -41,6 +41,10 @@ AUTUMN_2025 = dt.date(2025, 10, 26)  # 25-hour day
     ("DE_LU", "DE-LU"),
     ("DE", "DE-LU"),               # EEX / futures-collector alias (the known trap)
     ("IE_SEM", "IE-SEM"),
+    ("IT_NORD", "IT-NORD"),        # Italian, Norwegian and Greek zones (added 24 Oct)
+    ("NO_2", "NO2"),
+    ("10Y1001A1001A48H", "NO5"),
+    ("GR", "GR"),
 ])
 def test_resolve_zone_accepts_every_spelling(code, expected):
     assert resolve_zone(code) == expected
