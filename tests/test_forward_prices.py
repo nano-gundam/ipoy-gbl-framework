@@ -16,10 +16,12 @@ import pytest
 
 from metrics.forward_prices import (
     COLUMNS,
+    DEFAULT_OUT_DIR,
     ForwardPriceError,
     build,
     default_evaluation_date,
     divergence,
+    is_final_euronext,
     output_path,
     read_forward_prices,
     window_bounds,
@@ -30,7 +32,7 @@ E_EARLIER = dt.date(2026, 10, 9)   # two weeks earlier
 _ARCHIVE_COLUMNS = [
     "source", "trade_date", "contract_code", "bidding_zone", "zone_kind", "product",
     "maturity_type", "delivery_label", "delivery_start", "delivery_end",
-    "settlement_price", "volume_mwh", "source_timestamp",
+    "settlement_price", "volume_mwh", "source_timestamp", "retrieved_at_utc",
 ]
 _DELIVERY = {
     "Cal-2027": ("Year", "2027-01-01", "2027-12-31"),
@@ -45,22 +47,26 @@ def days(first: str, last: str) -> list[str]:
 
 
 def row(trade_date, zone="DE", label="Cal-2027", price=100.0, *, source="EEX", kind="zonal",
-        product="Base", code="DEBY", volume=8760.0, stamp=""):
+        product="Base", code="DEBY", volume=8760.0, stamp="", retrieved=""):
     maturity, start, end = _DELIVERY[label]
     return {"source": source, "trade_date": trade_date, "contract_code": code,
             "bidding_zone": zone, "zone_kind": kind, "product": product,
             "maturity_type": maturity, "delivery_label": label, "delivery_start": start,
             "delivery_end": end, "settlement_price": price, "volume_mwh": volume,
-            "source_timestamp": stamp}
+            "source_timestamp": stamp, "retrieved_at_utc": retrieved}
 
 
-def make_archive(path: Path, rows: list[dict]) -> Path:
+def make_archive(path: Path, rows: list[dict], runs: list[tuple] | None = None) -> Path:
+    """A small archive with the collector's schema; ``runs`` = (source, started_at_utc, status)."""
     db = path / "power_futures.sqlite"
     with sqlite3.connect(db) as conn:
         conn.execute(f"CREATE TABLE observations ({', '.join(_ARCHIVE_COLUMNS)})")
         conn.executemany(
             f"INSERT INTO observations VALUES ({', '.join('?' * len(_ARCHIVE_COLUMNS))})",
             [tuple(r[c] for c in _ARCHIVE_COLUMNS) for r in rows])
+        if runs is not None:
+            conn.execute("CREATE TABLE runs (source, started_at_utc, status, units_failed)")
+            conn.executemany("INSERT INTO runs VALUES (?, ?, ?, 0)", runs)
     return db
 
 
@@ -136,9 +142,10 @@ def test_flags_missing_days_and_no_volume(tmp_path):
 # --------------------------------------------------------------------------- #
 # sources and zones
 # --------------------------------------------------------------------------- #
-def euronext(d, zone, kind, code, price, stamp_time="15:59"):
+def euronext(d, zone, kind, code, price, stamp_time="15:59", stamp=None, retrieved=""):
     return row(d, zone=zone, kind=kind, code=code, price=price, source="EURONEXT",
-               volume=None, stamp=f"{d}T{stamp_time}")
+               volume=None, stamp=f"{d}T{stamp_time}" if stamp is None else stamp,
+               retrieved=retrieved)
 
 
 def test_euronext_zone_is_system_plus_epad_and_only_where_eex_has_none(tmp_path):
@@ -170,6 +177,121 @@ def test_stale_euronext_readings_are_dropped(tmp_path):
     assert lt.price_eur_mwh == 95.0 and lt.settlement_days_used == 35 and lt.flag_missing_days
     assert res.euronext_stale_dropped == 10
     assert res.table[(res.table.zone == "LT") & (res.table.method == "single_day")].empty
+
+
+@pytest.mark.parametrize("trade_date, stamp, final", [
+    ("2026-10-23", "2026-10-23T15:59", True),
+    ("2026-10-23", "2026-10-23T15:00", True),    # the cutoff itself counts
+    ("2026-10-23", "2026-10-23T14:59", False),   # morning reading, previous settlement
+    ("2026-10-23", "2026-10-22T15:59", False),   # yesterday's final price filed under today
+    ("2026-10-23", "", False),                   # no stamp: cannot be judged
+    ("2026-10-23", None, False),
+])
+def test_final_euronext_reading_needs_same_day_stamp_after_cutoff(trade_date, stamp, final):
+    frame = pd.DataFrame({"trade_date": [trade_date], "source_timestamp": [stamp],
+                          "retrieved_at_utc": [""]})
+    assert is_final_euronext(frame).tolist() == [final]
+
+
+@pytest.mark.parametrize("trade_date, retrieved_utc, final", [
+    ("2026-09-22", "2026-09-22T18:26:22+00:00", True),    # 20:26 CEST, after settlement
+    ("2026-09-22", "2026-09-22T13:05:00+00:00", True),    # 15:05 CEST: the cutoff is local time
+    ("2026-09-22", "2026-09-22T12:30:00+00:00", False),   # 14:30 CEST, before the cutoff
+    ("2026-09-18", "2026-09-19T22:29:44+00:00", True),    # read on a later day
+    ("2026-09-22", "", False),                            # nothing to judge by
+    ("2026-12-01", "2026-12-01T14:30:00+00:00", True),    # winter: 15:30 CET
+])
+def test_unstamped_reading_is_judged_by_retrieval_time(trade_date, retrieved_utc, final):
+    frame = pd.DataFrame({"trade_date": [trade_date], "source_timestamp": [None],
+                          "retrieved_at_utc": [retrieved_utc]})
+    assert is_final_euronext(frame).tolist() == [final]
+
+
+def test_a_stamp_is_never_overruled_by_retrieval_time():
+    # Read in the evening, but the page still said 11:10: the stamp decides.
+    frame = pd.DataFrame({"trade_date": ["2026-10-23"], "source_timestamp": ["2026-10-23T11:10"],
+                          "retrieved_at_utc": ["2026-10-23T19:00:00+00:00"]})
+    assert is_final_euronext(frame).tolist() == [False]
+
+
+def test_unstamped_days_are_recovered_in_the_table(tmp_path):
+    window = days("2026-08-24", E.isoformat())
+    evening = lambda d: f"{d}T18:30:00+00:00"
+    rows = de_cal27()
+    rows += [euronext(d, "NORDIC", "system", "NSBY", 60.0, stamp="", retrieved=evening(d)) for d in window]
+    rows += [euronext(d, "LT", "epad", "VIBY", 35.0, stamp="", retrieved=evening(d)) for d in window]
+    res = build(make_archive(tmp_path, rows), E)
+    assert pick(res.table, zone="LT").settlement_days_used == 45
+    assert res.euronext_stale_dropped == 0
+
+
+def test_euronext_reading_stamped_on_an_earlier_day_is_not_used(tmp_path):
+    window = days("2026-08-24", E.isoformat())
+    rows = de_cal27() + [euronext(d, "NORDIC", "system", "NSBY", 60.0) for d in window]
+    # The last day carries the previous day's final settlement under today's trade date.
+    rows += [euronext(d, "LT", "epad", "VIBY", 35.0 if d != E.isoformat() else 999.0,
+                      stamp=f"{d}T15:59" if d != E.isoformat() else "2026-10-22T15:59")
+             for d in window]
+    res = build(make_archive(tmp_path, rows), E)
+    lt = pick(res.table, zone="LT")
+    assert lt.price_eur_mwh == 95.0 and lt.settlement_days_used == 44
+    assert res.table[(res.table.zone == "LT") & (res.table.method == "single_day")].empty
+    assert res.euronext_stale_dropped == 1
+
+
+def test_stale_count_ignores_euronext_rows_for_contracts_eex_lists(tmp_path):
+    window = days("2026-08-24", E.isoformat())
+    rows = de_cal27()
+    rows += [euronext(d, "NORDIC", "system", "NSBY", 60.0) for d in window]
+    rows += [euronext(d, "LT", "epad", "VIBY", 35.0, "11:10" if i < 3 else "15:59")
+             for i, d in enumerate(window)]
+    # SE3 is on EEX, so its Euronext readings are never used, stale or not.
+    rows += [row(d, zone="SE3", code="3SBY", price=70.0) for d in window]
+    rows += [euronext(d, "SE3", "epad", "STBY", 5.0, "11:10") for d in window]
+    res = build(make_archive(tmp_path, rows), E)
+    assert res.euronext_stale_dropped == 3
+    assert pick(res.table, zone="SE3").source == "EEX"
+
+
+# --------------------------------------------------------------------------- #
+# the run log
+# --------------------------------------------------------------------------- #
+def test_unrecovered_partial_run_stops_the_build(tmp_path):
+    runs = [("EEX", "2026-10-20T18:30:00+00:00", "partial")]   # the last run of the window
+    db = make_archive(tmp_path, de_cal27(), runs)
+    with pytest.raises(ForwardPriceError, match="no later run recovered"):
+        build(db, E)
+    res = build(db, E, allow_problem_runs=True)
+    assert res.problem_runs[0]["status"] == "partial" and res.problem_runs[0]["covered_by"] == ""
+
+
+def test_partial_eex_run_recovered_by_a_later_run_is_only_reported(tmp_path):
+    runs = [("EEX", "2026-10-01T18:30:00+00:00", "partial"),
+            ("EEX", "2026-10-02T18:30:00+00:00", "ok")]
+    res = build(make_archive(tmp_path, de_cal27(), runs), E)
+    assert res.problem_runs == [{"source": "EEX", "started": "2026-10-01 20:30", "status": "partial",
+                                 "units_failed": 0, "covered_by": "2026-10-02 20:30"}]
+
+
+def test_failed_euronext_run_needs_a_same_day_run_after_the_cutoff(tmp_path):
+    morning_fail = ("EURONEXT", "2026-10-13T05:07:00+00:00", "failed")     # 07:07 CEST
+    afternoon_ok = ("EURONEXT", "2026-10-13T15:07:00+00:00", "ok")         # 17:07 CEST
+    next_day_ok = ("EURONEXT", "2026-10-14T15:07:00+00:00", "ok")
+    with pytest.raises(ForwardPriceError):
+        build(make_archive(tmp_path, de_cal27(), [morning_fail, next_day_ok]), E)
+    (tmp_path / "power_futures.sqlite").unlink()
+    res = build(make_archive(tmp_path, de_cal27(), [morning_fail, afternoon_ok]), E)
+    assert res.problem_runs[0]["covered_by"] == "2026-10-13 17:07"
+
+
+def test_runs_outside_the_window_are_ignored(tmp_path):
+    runs = [("EEX", "2026-07-01T18:30:00+00:00", "failed")]
+    assert build(make_archive(tmp_path, de_cal27(), runs), E).problem_runs == []
+
+
+def test_default_output_folder_is_in_the_repository_not_the_working_directory():
+    assert DEFAULT_OUT_DIR.is_absolute()
+    assert DEFAULT_OUT_DIR == Path(__file__).resolve().parents[1] / "data" / "processed" / "forward_prices"
 
 
 def test_unknown_areas_are_left_out_and_reported(tmp_path):

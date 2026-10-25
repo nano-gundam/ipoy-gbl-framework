@@ -1,7 +1,13 @@
 """Forward-price input table at a stated evaluation date (PW02-CD-02).
 
-    python -m metrics.forward_prices --archive <PowerFuturesCollector>/data/power_futures.sqlite
-    python -m metrics.forward_prices --archive ... --evaluation-date 2026-10-09
+    gh release download eex-db --pattern power_futures.sqlite --repo nano-gundam/ipoy-euronext-collector
+    python -m metrics.forward_prices --archive power_futures.sqlite
+    python -m metrics.forward_prices --archive power_futures.sqlite --evaluation-date 2026-10-09
+
+The official archive is the server database: the ``eex-db`` release asset of the private
+``ipoy-euronext-collector`` repository, refreshed by its EEX job every evening. Load that
+repository's Euronext snapshots into it first (``python -m powerfutures load data/raw --apply``
+in that repository) when Euronext contracts matter. Never commit the database here.
 
 Turns the power futures collector's archive into the one table the engine reads for
 forward prices, following the strike rule (``docs/methods/strike-rule-v0.md``, section 2):
@@ -68,6 +74,11 @@ PRODUCTS = {"Base": "base", "Peak": "peak"}
 # than 16:14, so 17:00 would drop every Euronext row.
 EURONEXT_FINAL_STAMP = "15:00"
 DIVERGENCE_REPORT_PCT = 10.0  # strike rule section 2: report both when they differ more
+EXCHANGE_TZ = "Europe/Berlin"  # EEX and Euronext stamps are on Central European local time
+# Every EEX run re-requests the last 45 days and EEX serves about 33 trading days, so a later
+# successful run within 30 calendar days has re-collected whatever a failed run missed.
+EEX_RECOLLECT_DAYS = 30
+DEFAULT_OUT_DIR = Path(__file__).resolve().parents[1] / "data" / "processed" / "forward_prices"
 
 COLUMNS = [
     "zone", "product", "delivery_period", "price_eur_mwh", "evaluation_date", "method",
@@ -94,6 +105,8 @@ class BuildResult:
     archive_gaps: dict[str, list[str]] = field(default_factory=dict)
     euronext_stale_dropped: int = 0
     archive_span: dict[str, tuple[str, str]] = field(default_factory=dict)
+    run_log_present: bool = True
+    problem_runs: list[dict] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -116,7 +129,7 @@ def default_evaluation_date(archive: Path, today: dt.date | None = None) -> dt.d
     Warns when the archive stops short of the last weekday before today, which means the
     collector has not caught up and the table would be older than it needs to be.
     """
-    today = today or dt.datetime.now(ZoneInfo("Europe/Berlin")).date()  # exchange clock
+    today = today or dt.datetime.now(ZoneInfo(EXCHANGE_TZ)).date()
     with _connect(archive) as conn:
         row = conn.execute(
             "SELECT max(trade_date) FROM observations WHERE source = 'EEX' AND trade_date < ?",
@@ -147,7 +160,7 @@ def read_window(archive: Path, first: dt.date, last: dt.date) -> pd.DataFrame:
     sql = f"""
         SELECT source, trade_date, contract_code, bidding_zone, zone_kind, product,
                maturity_type, delivery_label, delivery_start, delivery_end,
-               settlement_price, volume_mwh, source_timestamp
+               settlement_price, volume_mwh, source_timestamp, retrieved_at_utc
         FROM observations
         WHERE trade_date BETWEEN ? AND ?
           AND maturity_type IN ({",".join("?" * len(MATURITIES))})
@@ -163,6 +176,13 @@ def read_window(archive: Path, first: dt.date, last: dt.date) -> pd.DataFrame:
         span = conn.execute(
             "SELECT source, min(trade_date), max(trade_date) FROM observations GROUP BY source"
         ).fetchall()
+        has_runs = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'runs'").fetchone()
+        runs = pd.read_sql_query(
+            "SELECT source, started_at_utc, status, units_failed FROM runs", conn
+        ) if has_runs else None
+    # kept as records: pandas compares attrs when frames are combined, and a frame there breaks it
+    obs.attrs["runs"] = runs.to_dict("records") if runs is not None else None
     obs.attrs["days_by_source"] = days.groupby("source")["trade_date"].apply(set).to_dict()
     obs.attrs["span"] = {s: (a, b) for s, a, b in span}
     return obs
@@ -175,7 +195,7 @@ def _euronext_zone_prices(eu: pd.DataFrame) -> pd.DataFrame:
     """Euronext zone price per day = Nordic system settlement + the zone's EPAD spread."""
     system = eu[eu["zone_kind"] == "system"]
     epad = eu[eu["zone_kind"] == "epad"]
-    on = ["trade_date", "product", "maturity_type", "delivery_label"]
+    on = ["trade_date", "product", "maturity_type", "delivery_period"]
     merged = epad.merge(
         system[on + ["settlement_price", "contract_code"]],
         on=on, suffixes=("", "_system"), how="inner",
@@ -186,44 +206,81 @@ def _euronext_zone_prices(eu: pd.DataFrame) -> pd.DataFrame:
     return merged.drop(columns=["settlement_price_system", "contract_code_system"])
 
 
+def _after_cutoff(moment: pd.Series, trade_date: pd.Series, cutoff: str) -> pd.Series:
+    """``moment`` ("YYYY-MM-DDTHH:MM", exchange clock) is on the trade date at or after cutoff."""
+    return (moment.str[:10] == trade_date) & (moment.str[11:16] >= cutoff)
+
+
+def is_final_euronext(eu: pd.DataFrame, euronext_final_stamp: str = EURONEXT_FINAL_STAMP) -> pd.Series:
+    """True where a Euronext reading is that trade date's settlement.
+
+    With a stamp (every reading since 2 Oct 2026): the stamp must be on the trade date
+    itself, at or after the cutoff. A stamp from an earlier day is that day's price carried
+    over.
+
+    Without a stamp (readings collected before the collector recorded it): judged by our own
+    retrieval time on the exchange clock instead. Read on the trade date at or after the
+    cutoff, or on any later day, the page already held that session's settlement; read
+    earlier on the trade date, it may still have held the previous one. The archive keeps
+    the latest reading, so this is the time of the last read.
+    """
+    stamp = eu["source_timestamp"].fillna("")
+    stamped = stamp != ""
+    final_by_stamp = _after_cutoff(stamp, eu["trade_date"], euronext_final_stamp)
+
+    retrieved = eu.get("retrieved_at_utc", pd.Series("", index=eu.index)).fillna("")
+    local = pd.to_datetime(retrieved.where(retrieved != ""), utc=True, errors="coerce")
+    local = local.dt.tz_convert(EXCHANGE_TZ).dt.strftime("%Y-%m-%dT%H:%M").fillna("")
+    final_by_retrieval = (local != "") & (
+        _after_cutoff(local, eu["trade_date"], euronext_final_stamp)
+        | (local.str[:10] > eu["trade_date"]))
+    return (stamped & final_by_stamp) | (~stamped & final_by_retrieval)
+
+
+def _with_zone(frame: pd.DataFrame, skipped: dict[str, int]) -> pd.DataFrame:
+    """Add the zones.csv name; drop and count areas that have none."""
+    zone_of: dict[str, str | None] = {}
+    for area in frame["bidding_zone"].unique():
+        try:
+            zone_of[area] = resolve_zone(area)
+        except UnknownZoneError:
+            zone_of[area] = None
+    out = frame.assign(zone=frame["bidding_zone"].map(zone_of))
+    for area, n in out.loc[out["zone"].isna(), "bidding_zone"].value_counts().items():
+        skipped[area] = skipped.get(area, 0) + int(n)
+    out = out[out["zone"].notna()].copy()
+    out["product"] = out["product"].map(PRODUCTS)
+    return out.rename(columns={"delivery_label": "delivery_period"})
+
+
 def daily_zone_prices(obs: pd.DataFrame, euronext_final_stamp: str = EURONEXT_FINAL_STAMP
                       ) -> tuple[pd.DataFrame, dict[str, int], int]:
     """One settlement per zone, product, contract and trade date, with its source.
 
     Returns the daily frame, the futures areas left out (no zones.csv row) with their
-    observation counts, and the number of stale Euronext readings dropped.
+    observation counts, and the number of stale Euronext readings dropped among those the
+    table would otherwise use (Euronext rows for contracts EEX lists are not counted).
     """
-    eex = obs[(obs["source"] == "EEX") & (obs["zone_kind"] == "zonal")]
-    eu = obs[obs["source"] == "EURONEXT"]
-    stamp_time = eu["source_timestamp"].fillna("").str[11:16]
-    final = (stamp_time >= euronext_final_stamp) & (stamp_time != "")
-    stale = int((~final).sum())
-    eu = _euronext_zone_prices(eu[final])
-
-    daily = pd.concat([eex, eu], ignore_index=True)
     skipped: dict[str, int] = {}
-    zone_of: dict[str, str | None] = {}
-    for area in daily["bidding_zone"].unique():
-        try:
-            zone_of[area] = resolve_zone(area)
-        except UnknownZoneError:
-            zone_of[area] = None
-    daily["zone"] = daily["bidding_zone"].map(zone_of)
-    for area, n in daily.loc[daily["zone"].isna(), "bidding_zone"].value_counts().items():
-        skipped[area] = int(n)
-    # The Nordic system price is not a zone, but it is used above for the Euronext zones.
-    daily = daily[daily["zone"].notna()].copy()
-
-    daily["product"] = daily["product"].map(PRODUCTS)
-    daily = daily.rename(columns={"delivery_label": "delivery_period"})
+    eex = _with_zone(obs[(obs["source"] == "EEX") & (obs["zone_kind"] == "zonal")], skipped)
+    eex_keys = set(map(tuple, eex[_KEY].itertuples(index=False)))
 
     # EEX first: Euronext only for a contract EEX does not list in the window.
-    eex_keys = set(map(tuple, daily.loc[daily["source"] == "EEX", _KEY].itertuples(index=False)))
-    is_eu = daily["source"] == "EURONEXT"
-    covered = pd.Series([tuple(k) in eex_keys for k in daily[_KEY].itertuples(index=False)],
-                        index=daily.index)
-    daily = daily[~(is_eu & covered)]
+    eu = obs[obs["source"] == "EURONEXT"]
+    epad = _with_zone(eu[eu["zone_kind"] == "epad"], skipped)
+    needed = [tuple(k) not in eex_keys for k in epad[_KEY].itertuples(index=False)]
+    epad = epad[pd.Series(needed, index=epad.index, dtype=bool)]
+    system = eu[eu["zone_kind"] == "system"].rename(columns={"delivery_label": "delivery_period"})
+    system = system.assign(product=system["product"].map(PRODUCTS))
+    contract = ["product", "maturity_type", "delivery_period"]
+    system = system.merge(epad[contract].drop_duplicates(), on=contract, how="inner")
 
+    used = pd.concat([epad, system], ignore_index=True)
+    final = is_final_euronext(used, euronext_final_stamp)
+    stale = int((~final).sum())
+    eu_daily = _euronext_zone_prices(used[final])
+
+    daily = pd.concat([eex, eu_daily], ignore_index=True)
     dupes = daily.duplicated(_KEY + ["trade_date"], keep=False)
     if dupes.any():
         sample = daily.loc[dupes, _KEY + ["trade_date", "source"]].head(4).to_dict("records")
@@ -232,12 +289,53 @@ def daily_zone_prices(obs: pd.DataFrame, euronext_final_stamp: str = EURONEXT_FI
 
 
 # --------------------------------------------------------------------------- #
+# the collector's run log
+# --------------------------------------------------------------------------- #
+def problem_runs(runs: pd.DataFrame, first: dt.date, last: dt.date,
+                 euronext_final_stamp: str = EURONEXT_FINAL_STAMP) -> list[dict]:
+    """Collector runs during the window that did not end ``ok``, and whether data was recovered.
+
+    A partial run makes a zone look untraded rather than uncollected, and nothing in the
+    observations shows the difference (operations note). So the run log is checked:
+
+    * EEX: covered if a later ``ok`` EEX run started within EEX_RECOLLECT_DAYS, since every
+      run re-collects the last weeks.
+    * Euronext: covered if an ``ok`` Euronext run on the same exchange-local day started at
+      or after the cutoff, since that run read the day's settlement. Euronext keeps no history,
+      so nothing else can recover the day.
+    """
+    r = runs.copy()
+    r["start"] = pd.to_datetime(r["started_at_utc"], utc=True, errors="coerce").dt.tz_convert(EXCHANGE_TZ)
+    lo = pd.Timestamp(first, tz=EXCHANGE_TZ)
+    hi = pd.Timestamp(last, tz=EXCHANGE_TZ) + pd.Timedelta(days=2)  # the evening run of E, and a late one
+    in_window = r[(r["start"] >= lo) & (r["start"] < hi)]
+    ok = r[r["status"] == "ok"]
+    out = []
+    for run in in_window[in_window["status"] != "ok"].itertuples():
+        same = ok[ok["source"] == run.source]
+        if run.source == "EEX":
+            later = same[(same["start"] > run.start)
+                         & (same["start"] <= run.start + pd.Timedelta(days=EEX_RECOLLECT_DAYS))]
+        else:
+            later = same[(same["start"].dt.date == run.start.date())
+                         & (same["start"].dt.strftime("%H:%M") >= euronext_final_stamp)]
+        out.append({"source": run.source, "started": run.start.strftime("%Y-%m-%d %H:%M"),
+                    "status": run.status, "units_failed": run.units_failed,
+                    "covered_by": later["start"].min().strftime("%Y-%m-%d %H:%M") if len(later) else ""})
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # the table
 # --------------------------------------------------------------------------- #
 def build(archive: Path, evaluation_date: dt.date | None = None, *,
-          euronext_final_stamp: str = EURONEXT_FINAL_STAMP, today: dt.date | None = None
-          ) -> BuildResult:
-    """Build the forward-price table for one evaluation date from the collector archive."""
+          euronext_final_stamp: str = EURONEXT_FINAL_STAMP, today: dt.date | None = None,
+          allow_problem_runs: bool = False) -> BuildResult:
+    """Build the forward-price table for one evaluation date from the collector archive.
+
+    Refuses when the run log shows a failed or partial run in the window whose data no later
+    run recovered, unless ``allow_problem_runs``; such runs are then listed in the report.
+    """
     e = evaluation_date or default_evaluation_date(archive, today)
     if e.weekday() >= 5:
         raise ForwardPriceError(f"evaluation date {e} is a weekend day, not a trading day")
@@ -246,6 +344,15 @@ def build(archive: Path, evaluation_date: dt.date | None = None, *,
     days_by_source = obs.attrs["days_by_source"]
     if e.isoformat() not in days_by_source.get("EEX", set()):
         raise ForwardPriceError(f"the archive holds no EEX settlements on the evaluation date {e}")
+    runs = obs.attrs["runs"]
+    problems = (problem_runs(pd.DataFrame(runs, columns=["source", "started_at_utc", "status", "units_failed"]),
+                             first, last, euronext_final_stamp) if runs is not None else [])
+    uncovered = [p for p in problems if not p["covered_by"]]
+    if uncovered and not allow_problem_runs:
+        raise ForwardPriceError(
+            f"{len(uncovered)} collector run(s) in the window failed or were partial and no later "
+            f"run recovered the data, e.g. {uncovered[:3]}; check the archive, or pass "
+            "--allow-problem-runs to build anyway (the report lists them)")
 
     daily, skipped, stale = daily_zone_prices(obs, euronext_final_stamp)
     daily = daily[daily["delivery_start"] > e.isoformat()]
@@ -298,7 +405,8 @@ def build(archive: Path, evaluation_date: dt.date | None = None, *,
             for src in ("EEX", "EURONEXT")}
     return BuildResult(table=table, evaluation_date=e, window_first_date=first,
                        skipped_areas=skipped, archive_gaps=gaps,
-                       euronext_stale_dropped=stale, archive_span=obs.attrs["span"])
+                       euronext_stale_dropped=stale, archive_span=obs.attrs["span"],
+                       run_log_present=runs is not None, problem_runs=problems)
 
 
 def divergence(table: pd.DataFrame) -> pd.DataFrame:
@@ -347,7 +455,8 @@ def write_report(result: BuildResult, path: Path, csv_name: str, archive: Path) 
     def md(df: pd.DataFrame) -> str:
         if df.empty:
             return "_none_"
-        cell = lambda v: f"{v:.2f}" if isinstance(v, float) else ("" if v is None or v is pd.NA else str(v))
+        cell = lambda v: "" if v is None or v is pd.NA or (isinstance(v, float) and pd.isna(v)) else (
+            f"{v:.2f}" if isinstance(v, float) else str(v))
         rows = [" | ".join(df.columns), " | ".join("---" for _ in df.columns)]
         rows += [" | ".join(cell(v) for v in r) for r in df.itertuples(index=False)]
         return "\n".join(f"| {r} |" for r in rows)
@@ -382,12 +491,18 @@ def write_report(result: BuildResult, path: Path, csv_name: str, archive: Path) 
         "",
         ", ".join(f"{a} ({n} obs.)" for a, n in sorted(result.skipped_areas.items())) or "_none_",
         "",
+        "## Collector runs in the window that did not end ok",
+        "",
+        ("_the archive has no run log_" if not result.run_log_present
+         else md(pd.DataFrame(result.problem_runs)) if result.problem_runs else "_none_"),
+        "",
         "## Archive days missing in the window (weekdays with no rows at all)",
         "",
         *[f"- {s}: {len(d)} — {', '.join(d) if d else 'none'}" for s, d in result.archive_gaps.items()],
         "",
-        (f"Euronext readings dropped as stale (stamped before {EURONEXT_FINAL_STAMP} CET): "
-         f"{result.euronext_stale_dropped}."),
+        (f"Euronext readings not used because they are not that day's settlement (no stamp, "
+         f"a stamp from an earlier day, or stamped before {EURONEXT_FINAL_STAMP} CET), counted only "
+         f"for contracts EEX does not list: {result.euronext_stale_dropped}."),
         "",
         (f"## Single day against two-month average: {len(big)} of {len(div)} contracts "
          f"differ by more than {DIVERGENCE_REPORT_PCT:.0f}%"),
@@ -413,16 +528,20 @@ def write_report(result: BuildResult, path: Path, csv_name: str, archive: Path) 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--archive", required=True, type=Path,
-                   help="the collector's power_futures.sqlite")
+                   help="the server database (eex-db release of ipoy-euronext-collector)")
     p.add_argument("--evaluation-date", type=dt.date.fromisoformat,
                    help="ISO date; default the last complete trading day in the archive")
-    p.add_argument("--out-dir", type=Path, default=Path("data/processed/forward_prices"))
+    p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR,
+                   help="default: data/processed/forward_prices in this repository")
     p.add_argument("--euronext-final-stamp", default=EURONEXT_FINAL_STAMP)
+    p.add_argument("--allow-problem-runs", action="store_true",
+                   help="build even if a failed or partial run left data unrecovered")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
     result = build(args.archive, args.evaluation_date,
-                   euronext_final_stamp=args.euronext_final_stamp)
+                   euronext_final_stamp=args.euronext_final_stamp,
+                   allow_problem_runs=args.allow_problem_runs)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     out = output_path(args.out_dir, result.evaluation_date)
     result.table.to_csv(out, index=False, lineterminator="\n")
