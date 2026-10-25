@@ -11,7 +11,7 @@ FI,FI,10YFI-1--------U,bidding_zone,FI,Europe/Helsinki,
 FR,FR,10YFR-RTE------C,bidding_zone,FR,Europe/Paris,
 GR,GR,10YGR-HTSO-----Y,bidding_zone,GR,Europe/Athens,
 HU,HU,10YHU-MAVIR----U,bidding_zone,HU,Europe/Budapest,
-IE-SEM,IE_SEM,10Y1001A1001A59C,bidding_zone,IE,Europe/Dublin,
+IE-SEM,IE_SEM,10Y1001A1001A59C,bidding_zone,IE,Europe/Dublin,IE
 IT-CALA,IT_CALA,10Y1001C--00096J,bidding_zone,IT,Europe/Rome,
 IT-CNOR,IT_CNOR,10Y1001A1001A70O,bidding_zone,IT,Europe/Rome,
 IT-CSUD,IT_CSUD,10Y1001A1001A71M,bidding_zone,IT,Europe/Rome,

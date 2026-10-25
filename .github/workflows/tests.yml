@@ -18,9 +18,10 @@ jobs:
       # pytest and ruff; "--group dev" alone left numpy out, so no test could even be imported.
       - run: python -m pip install -r requirements.txt
       # Code tests: must pass.
-      - name: Code tests (harmonise, acceptance self-check)
+      - name: Code tests (harmonise, forward prices, acceptance self-check)
         run: |
           pytest tests/test_harmonise.py
+          pytest tests/test_forward_prices.py
           pytest tests/test_data_acceptance.py -k selfcheck
       # The acceptance checks on the raw files fail by design until they run on harmonised
       # output (raw columns such as "value" carry no unit). Reported here, but not blocking.
