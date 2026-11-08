@@ -1,6 +1,8 @@
 # Strike rule v0: realised prices for the past, evaluation date for the future
 
-Task: PW02-MV-04 · Author: Wenhao Gu · Check: Devika · Status: draft v0, 22 Oct 2026 · Path: `docs/methods/strike-rule-v0.md`
+Task: PW02-MV-04 · Author: Wenhao Gu · Check: Devika · Status: v0.1, 8 Nov 2026 (v0 merged 24 Oct) · Path: `docs/methods/strike-rule-v0.md`
+
+**Change in v0.1.** Flower decided on 26 Oct to prioritise onshore wind (minutes 26.10, section 1). Every capture rate in this note is therefore the **onshore** one. Nothing else changes.
 
 The reference portfolio has two fixed prices. Flower pays the wind producer P_PPA and charges the baseload buyer P_cPPA (GBL Explained, section 1). At the 16 Oct meeting (recording 33:03–39:23) Flower told us to use realised day-ahead prices for past years and the futures curve on a stated evaluation date for future years. No futures history is needed. This note turns that guidance into formulas. Both strikes are fair prices with **no risk premium**. The premium is measured as a result (section 4). **[choice]** marks what the team can still push back on. Column names refer to `metric-dictionary-v0.md`.
 
@@ -10,9 +12,9 @@ Contract year y = one calendar year of delivery (CET/CEST days). Each contract r
 
   P_cPPA,y = `price_mean_eur_mwh`(z, y − 1)
 
-  P_PPA,y = `capture_rate_nonneg_wind_ratio`(z, y − 1) × P_cPPA,y
+  P_PPA,y = `capture_rate_nonneg_wind_onshore_ratio`(z, y − 1) × P_cPPA,y
 
-Both inputs already exist in the screening indicator table, on the hourly series. Data start in 2019, so past contract years run from 2020 to the last complete year before the evaluation date. The year that contains the evaluation date is part realised and part forward, and it is left out **[choice]**. If year y − 1 fails the 98% rule for price or wind (dictionary 0.4), the strike is empty and year y is dropped with `flag_strike_missing`. A real contract is signed a few months before delivery, so using all of year y − 1 is a small look-ahead. I accept that for v0.
+Both inputs come from the screening indicator table, on the hourly series. The onshore capture rate is the dictionary section 4 formula with G_h = `gen_wind_onshore_mw` only. Metric dictionary v1 adds it as its own column. Until then Coding can compute it with that one change. Offshore stays in the data for later (Flower: look again where offshore is about 10% of generation). Data start in 2019, so past contract years run from 2020 to the last complete year before the evaluation date. The year that contains the evaluation date is part realised and part forward, and it is left out **[choice]**. If year y − 1 fails the 98% rule for price or wind (dictionary 0.4), the strike is empty and year y is dropped with `flag_strike_missing`. A real contract is signed a few months before delivery, so using all of year y − 1 is a small look-ahead. I accept that for v0.
 
 ## 2. Future contract years
 
@@ -20,7 +22,7 @@ Strikes come from the forward-price table (PW02-CD-02) at its evaluation date E.
 
   P_cPPA,y = F(z, base, Cal-y, E), method `avg_2m`
 
-  P_PPA,y = CR_nonneg of the last complete year before E × P_cPPA,y **[choice]**
+  P_PPA,y = onshore CR_nonneg of the last complete year before E × P_cPPA,y **[choice]**
 
 `avg_2m` = mean daily settlement of that fixed contract over trade dates in (E − 2 months, E]. Prices are grouped by the contract itself (Cal-2027), never by curve position such as "front year". Flower proposed the two-month average to smooth daily moves and said a single day is also fine (37:04–38:22). So `single_day`, the settlement on E, is run as the check. If a headline number moves more than 10% between the two, both are reported **[choice]**. Future years run from the year after E to the last listed Cal contract. Later years get no strike and carry `flag_beyond_curve`. EEX is the first source, Euronext only where EEX has no contract. Euronext rows stamped before about 17:00 CET may hold the previous settlement and are not used. Futures `DE` joins spot `DE-LU` through `zones.csv`.
 
