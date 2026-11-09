@@ -1,21 +1,6 @@
 """
 Unified ENTSO-E ingestion script for IPOY.
 
-Includes:
-1) Historical time-series data:
-   - Day-ahead prices
-   - Wind generation (B19)
-   - Solar generation (B16)
-   - Total load
-
-2) Installed generation capacity (ENTSO-E 14.1.A):
-   - 18 country/control-area codes
-   - 2019-2025
-   - All production types (no PSR filter)
-
-Run from the project:
-    python scripts/entsoe_ingestion_unified.py
-
 Optional:
     python scripts/entsoe_ingestion_unified.py --only-timeseries
     python scripts/entsoe_ingestion_unified.py --only-capacity
