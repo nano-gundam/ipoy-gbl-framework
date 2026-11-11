@@ -24,7 +24,9 @@ constants in section 1 if Coding & Data decides otherwise:
   timezone-aware in UTC, marking the START of each interval;
 * a file holds one UTC calendar year;
 * series are recognised by their folder name: "day_ahead", "generation", "load"/"demand", "capacity";
-* optional provenance columns ``mtu_minutes`` and ``retrieved_at_utc``.
+* optional provenance columns ``mtu_minutes`` and ``retrieved_at_utc``;
+* a file may switch ONCE from 60- to 15-minute rows (team decision, 24 Oct 2026). Outside
+  the 2025 day-ahead switch such a file passes but is flagged with a warning.
 """
 from __future__ import annotations
 
@@ -77,6 +79,13 @@ MIXED_STEP_RUN = 4  # this many consecutive intervals of a larger size = a secon
 # legitimately contain BOTH steps; every other file must have exactly one.
 SDAC_15MIN_START = pd.Timestamp("2025-09-30 22:00", tz="UTC")
 SWITCH_YEARS = (2025,)
+
+# Team decision (24 Oct 2026): ENTSO-E moved each country's load and generation to
+# 15 minutes on its own date, and raw files are never resampled, so a file whose rows
+# switch ONCE from 60 to 15 minutes is accepted in every series and year. Outside the
+# 2025 day-ahead switch above it is flagged with a "MIXED STEP" warning so it is easy
+# to find. A switch back from 15 to 60 minutes, or a second switch, still fails.
+ACCEPT_MIXED_STEP = True
 
 SERIES_KINDS = (  # first match wins; matched on the lower-cased SERIES folder name
     ("capacity", ("capacity",)),
@@ -172,15 +181,20 @@ def _diff_minutes(idx: pd.DatetimeIndex) -> np.ndarray:
     return np.diff((idx - EPOCH).total_seconds().to_numpy()) / 60.0
 
 
+def is_sdac_switch(ctx: Ctx, at: pd.Timestamp) -> bool:
+    """The one switch that needs no flag: day-ahead prices in 2025, from SDAC's 15-minute start."""
+    return ctx.kind == "day_ahead_price" and ctx.year in SWITCH_YEARS and at >= SDAC_15MIN_START
+
+
 def _find_switch(d: np.ndarray, idx: pd.DatetimeIndex, ctx: Ctx) -> int | None:
-    """Row number of the first 15-minute row if this is the 2025 day-ahead file with both steps."""
-    if ctx.kind != "day_ahead_price" or ctx.year not in SWITCH_YEARS:
+    """Row number of the first 15-minute row if the file switches once from 60 to 15 minutes."""
+    if ctx.kind == "capacity":
         return None
     hits = np.flatnonzero(d == 15.0)
     if hits.size == 0 or hits[0] == 0:
         return None  # fully hourly or fully 15-minute: the normal rule applies
     k = int(hits[0])
-    if idx[k] < SDAC_15MIN_START:
+    if not ACCEPT_MIXED_STEP and not is_sdac_switch(ctx, idx[k]):
         return None
     if np.all(d[:k] % 60 == 0) and np.all(d[k:] % 15 == 0):
         return k
@@ -211,7 +225,7 @@ def prepare(df: pd.DataFrame, ctx: Ctx) -> Prepared:
         k = _find_switch(d, body.index, ctx)
         if k is not None:
             slot = np.where(np.arange(n) < k, 60.0, 15.0)
-            switch = SDAC_15MIN_START
+            switch = body.index[k]
         else:
             vals, counts = np.unique(d, return_counts=True)
             slot = np.full(n, vals[np.argmax(counts)])
@@ -314,7 +328,13 @@ def check_timestamps(df: pd.DataFrame, ctx: Ctx) -> CheckResult:
         r.errors.append("fewer than two timestamps: cannot determine the step")
         return r
     d = _diff_minutes(idx)
-    if _find_switch(d, idx, ctx) is None:
+    k = _find_switch(d, idx, ctx)
+    if k is not None and not is_sdac_switch(ctx, idx[k]):
+        r.warnings.append(
+            f"MIXED STEP: 60-minute rows until {idx[k]}, 15-minute from then on "
+            f"({k} hourly and {len(idx) - k} 15-minute rows). Accepted, but this is not the 2025 "
+            f"day-ahead switch: code that reads this file must handle both steps")
+    if k is None:
         vals, counts = np.unique(d, return_counts=True)
         step = float(vals[np.argmax(counts)])
         if step not in STEPS_ALLOWED:
@@ -403,7 +423,7 @@ def check_clock_changes(df: pd.DataFrame, ctx: Ctx) -> CheckResult:
         if not (hours.index[0] < day < hours.index[-1]):
             continue  # file does not reach this clock change (partial year)
         found = inner[np.isclose(inner, want)]
-        actual = hours.get(day)
+        actual = hours.get(day, 0.0)  # a clock-change day with no rows at all has 0 hours
         if len(found) != 1:
             r.errors.append(
                 f"expected exactly one {want}-hour day in {month}, found {len(found)}"
@@ -870,14 +890,24 @@ def _mixed_steps_no_mtu(df):
     return _mixed_steps_2024(df).drop(columns=["mtu_minutes"])
 
 
+def _back_to_hourly(df):
+    # 15-minute until 1 Oct, hourly afterwards: the switch goes the wrong way and is never accepted
+    start, switch = pd.Timestamp("2024-01-01", tz="UTC"), pd.Timestamp("2024-10-01", tz="UTC")
+    idx = pd.date_range(start, switch, freq="15min", inclusive="left").append(
+        pd.date_range(switch, pd.Timestamp("2025-01-01", tz="UTC"), freq="60min", inclusive="left"))
+    out = make_frame(DA, 2024, step=15).iloc[:len(idx)].copy()
+    out["timestamp_utc"] = idx
+    out["mtu_minutes"] = np.where(idx < switch, 15, 60)
+    return out.reset_index(drop=True)
+
+
 CASES = [
     # id,                          check,               series, year, break the frame
     ("timestamps_not_utc",         "timestamps",        DA,  2024, _naive),
     ("timestamps_duplicate_hour",  "timestamps",        DA,  2024, _duplicate_hour),
     ("timestamps_out_of_order",    "timestamps",        DA,  2024, _out_of_order),
     ("timestamps_half_hour_row",   "timestamps",        DA,  2024, _half_hour_row),
-    ("timestamps_mixed_step_2024", "timestamps",        DA,  2024, _mixed_steps_2024),
-    ("timestamps_mixed_step_no_mtu", "timestamps",     DA,  2024, _mixed_steps_no_mtu),
+    ("timestamps_15_back_to_60",   "timestamps",        DA,  2024, _back_to_hourly),
     ("timestamps_wrong_mtu_col",   "timestamps",        DA,  2024, _wrong_mtu),
     ("completeness_3pct_missing",  "completeness",      DA,  2023, _missing_share(0.03)),
     ("completeness_ten_day_gap",   "completeness",      DA,  2023, _ten_day_gap),
@@ -971,11 +1001,23 @@ def test_selfcheck_utc_year_edges_are_not_mistaken_for_short_days(tmp_path):
     assert not run(check_clock_changes, path).errors
 
 
-def test_selfcheck_two_step_file_is_rejected_outside_the_2025_day_ahead_exception(tmp_path):
-    """The 60 -> 15 minute switch is only tolerated in the 2025 day-ahead file."""
+def test_selfcheck_two_step_file_passes_but_is_flagged_outside_the_2025_day_ahead_switch(tmp_path):
+    """One 60 -> 15 minute switch passes everywhere; only the 2025 day-ahead switch goes unflagged."""
     mixed = make_frame(DA, 2025, switch_at=SDAC_15MIN_START)
-    assert not run(check_timestamps, write(tmp_path, mixed, DA, 2025)).errors
-    assert run(check_timestamps, write(tmp_path, mixed, GEN, 2025)).errors  # same data in a generation series
+    sdac = run(check_timestamps, write(tmp_path, mixed, DA, 2025))
+    assert not sdac.errors and not sdac.warnings
+    gen = run(check_timestamps, write(tmp_path, mixed, GEN, 2025))  # same data in a generation series
+    assert not gen.errors and any("MIXED STEP" in w for w in gen.warnings)
+    for name, frame in (("with mtu_minutes", _mixed_steps_2024(None)), ("without", _mixed_steps_no_mtu(None))):
+        res = run(check_timestamps, write(tmp_path / name, frame, DA, 2024))
+        assert not res.errors and any("MIXED STEP" in w for w in res.warnings), name
+
+
+def test_selfcheck_a_mixed_step_file_is_judged_on_both_steps(tmp_path):
+    """Completeness counts hourly slots before the switch and 15-minute slots after it."""
+    path = write(tmp_path, _mixed_steps_2024(None), GEN, 2024)
+    assert not run(check_completeness, path).errors
+    assert not run(check_clock_changes, path).errors
 
 
 # --------------------------------------------------------------------------- #
