@@ -5,4 +5,3 @@ scripts/
 __pycache__/
 *.pyc
 .ruff_cache/
-data/databento/
