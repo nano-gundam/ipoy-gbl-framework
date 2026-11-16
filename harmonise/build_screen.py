@@ -23,6 +23,12 @@ and two tables for the whole run:
   longest gap and where it starts, and whether the year passes the 98 % rule.
 
 Scope: onshore wind only (PW03 brief).
+
+Currency: ENTSO-E day-ahead prices are EUR, with one exception found in PW03. Poland's
+prices are in PLN until delivery day 19 Nov 2019 (Poland joined market coupling on
+20 Nov 2019), and the raw file does not say so. Those hours are converted with the ECB
+reference rates in ``data/raw/ecb/`` (``NON_EUR_PRICES``) before harmonising. The data
+tests still run on the unconverted raw files.
 """
 from __future__ import annotations
 
@@ -36,7 +42,9 @@ import numpy as np
 import pandas as pd
 
 from harmonise.adapters import from_entsoe
-from harmonise.pipeline import harmonise_file
+from harmonise.clock import delivery_day
+from harmonise.currency import to_eur
+from harmonise.pipeline import harmonise
 from harmonise.resample import infer_mtu_minutes
 from harmonise.zones import resolve_zone, zone_info
 
@@ -62,6 +70,12 @@ SERIES = {
 # Calabria became its own bidding zone on 1 Jan 2021 (split from IT-SUD).
 ZONE_NOT_YET_CREATED = {("IT-CALA", 2019), ("IT-CALA", 2020)}
 
+# Raw day-ahead prices that are not in EUR although the file does not say so:
+# zone -> (currency, last delivery day in that currency, ECB rates file in units per EUR).
+NON_EUR_PRICES = {
+    "PL": ("PLN", date(2019, 11, 19), ROOT / "data" / "raw" / "ecb" / "pln_eur_2018-12_2019-11.csv"),
+}
+
 
 def _entsoe_folder(zone: str) -> str:
     """'DE-LU' -> 'DE_LU', the folder name in data/raw/entsoe."""
@@ -70,6 +84,22 @@ def _entsoe_folder(zone: str) -> str:
 
 def _raw_path(series: str, zone: str, year: int) -> Path:
     return RAW / series / _entsoe_folder(zone) / f"{year}.parquet"
+
+
+def _read_raw(series: str, zone: str, year: int) -> pd.DataFrame:
+    """One raw file, with any non-EUR price hours (``NON_EUR_PRICES``) converted to EUR."""
+    raw = pd.read_parquet(_raw_path(series, zone, year))
+    if series != "day_ahead_prices" or zone not in NON_EUR_PRICES:
+        return raw
+    currency, last_day, rates_path = NON_EUR_PRICES[zone]
+    in_currency = np.array([d <= last_day for d in delivery_day(raw.index)])
+    if not in_currency.any():
+        return raw
+    rates = pd.read_csv(rates_path, index_col=0).iloc[:, 0]
+    eur, _ = to_eur(raw.loc[in_currency, "value"], currency, rates)
+    raw = raw.copy()
+    raw.loc[in_currency, "value"] = eur.to_numpy()
+    return raw
 
 
 # --------------------------------------------------------------------------- #
@@ -137,7 +167,7 @@ def build_hourly(zone: str) -> pd.DataFrame:
                 continue
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")  # data warnings are already in the test log
-                h = harmonise_file(path)
+                h = harmonise(_read_raw(series, zone, year), series=series, zone=zone, year=year)
             parts.append(h[column])
         values = pd.concat(parts).sort_index() if parts else pd.Series(dtype=float)
         if values.index.has_duplicates:
@@ -154,7 +184,7 @@ def build_native_prices(zone: str) -> pd.DataFrame:
         path = _raw_path("day_ahead_prices", zone, year)
         if not path.exists():
             continue
-        raw = pd.read_parquet(path)
+        raw = _read_raw("day_ahead_prices", zone, year)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             values = from_entsoe(raw, "day_ahead_prices", "EUR")
