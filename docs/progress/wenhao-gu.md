@@ -2,7 +2,7 @@
 
 Status of my tasks from the Notion Tasks Tracker, kept next to the work itself. Notion status is set by the group leader. This file says what exists, where it is, and what is still open.
 
-Last updated: 16 Nov 2026
+Last updated: 21 Nov 2026
 
 ## Open tasks
 
@@ -22,6 +22,7 @@ Last updated: 16 Nov 2026
 ## Decisions from Flower that my documents depend on
 
 - 16 Oct: past years struck from realised day-ahead prices, future years from the curve on a stated evaluation date. No futures history.
+- 21 Nov (team): SE3 is the only benchmark for Gate 2 and Gate 4 thresholds, and offshore wind is out of scope.
 - 26 Oct: onshore wind first, offshore kept for later (look again where offshore is about 10% of generation). SE3 is the Swedish baseline. Prices and wind data at bidding-zone level, rules at national level. Screen Italy's seven zones before detailed work.
 
 ## Still open with Flower (carried into PW03 / D13)
@@ -36,6 +37,7 @@ Last updated: 16 Nov 2026
 
 ## Log
 
+- 21 Nov: spec v1 and dictionary v1 revised: thresholds scored against SE3 only (was SE3, FI, DK1, DK2, DE-LU), offshore wind removed from every indicator, G4-01 margin given a 1 EUR/MWh floor. Hand check updated and passing.
 - 16 Nov: PW03-MV-00 v1 drafts: reference portfolio spec v1 (strike rule folded in, Gate 4 definitions) and metric dictionary v1 (onshore capture rate, erosion, zone rule, Gate 2 threshold proposal). New `tests/hand_check_gate4.py --selftest` asserts Fixture G (EV 0.020333, ES95 0.24, RP* 25.5 / 14.875 EUR/MWh, bisection 26.228571), the erosion check (−0.013571) and the Gate 2 threshold table.
 - 8 Nov: v0.1 of strike rule and reference portfolio spec (onshore wind only, SE3 settled). All checks re-run and unchanged: zero-margin identity, +10% price case (275k / 225k / 175k EUR), capture-rate drop (−250k EUR), Fixture A strike 12.303984, 43 weekdays in the default `avg_2m` window.
 - 24 Oct: strike rule v0 and reference portfolio spec v0 merged.

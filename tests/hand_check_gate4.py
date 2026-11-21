@@ -6,7 +6,8 @@ can be checked against them. Plain Python plus numpy only.
 Usage
   python tests/hand_check_gate4.py --selftest
       Fixture G (EV, ES95, implied risk premium), the capture-rate erosion
-      check and the Gate 2 threshold test table. Asserts every answer.
+      check, the Gate 2 threshold table (SE3 as the only reference) and
+      the Gate 4 G4-01 scoring rule. Asserts every answer.
 """
 import math
 import sys
@@ -62,12 +63,25 @@ def cr_erosion(years, cr, min_years=5):
     return float(((y - y.mean()) * (c - c.mean())).sum() / ((y - y.mean()) ** 2).sum())
 
 
-# Metric dictionary v1, section 8.2 (higher is better for all three as stored:
-# capture rate, erosion slope, spread)
+# Metric dictionary v1, section 8.2. SE3 is the reference value. Higher is
+# better for all three as stored: capture rate, erosion slope, spread.
 def gate2_score(value, bound, margin, tol=1e-9):
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return "ND"
     worse = bound - value
+    if worse <= tol:
+        return 2
+    if worse <= margin + tol:
+        return 1
+    return 0
+
+
+# Reference portfolio spec v1, section 4.6 (G4-01): lower RP* is better.
+def gate4_score(rp_zone, rp_se3, tol=1e-9):
+    if rp_zone is None or (isinstance(rp_zone, float) and math.isnan(rp_zone)):
+        return "ND"
+    margin = max(0.25 * rp_se3, 1.0)
+    worse = rp_zone - rp_se3
     if worse <= tol:
         return 2
     if worse <= margin + tol:
@@ -109,21 +123,22 @@ def selftest():
                           [0.90, 0.88, 0.85, 0.86, 0.83, 0.81]) - (-0.013602)) < TOL
     assert math.isnan(cr_erosion([2022, 2023, 2024, 2025], [0.9, 0.88, 0.86, 0.85]))
 
-    calib = {"cr": [0.82, 0.78, 0.80, 0.83, 0.74],
-             "er": [-0.010, -0.020, -0.015, -0.012, -0.018],
-             "sp": [45, 60, 70, 72, 95]}
-    bound = {k: min(v) for k, v in calib.items()}
-    margin = {"cr": 0.05, "er": 0.01, "sp": 0.2 * bound["sp"]}
-    cases = {"X": ((0.76, -0.005, 50), [2, 2, 2]),
-             "Y": ((0.71, -0.025, 40), [1, 1, 1]),
-             "Z": ((0.66, -0.035, 30), [0, 0, 0]),
-             "edge_bound": ((0.74, -0.020, 45), [2, 2, 2]),
-             "edge_margin": ((0.69, -0.030, 36), [1, 1, 1])}
+    # Gate 2: SE3 is the only reference (21 Nov revision).
+    se3 = {"cr": 0.82, "er": -0.010, "sp": 45}
+    margin = {"cr": 0.05, "er": 0.01, "sp": 0.2 * se3["sp"]}
+    cases = {"X": ((0.86, -0.005, 50), [2, 2, 2]),
+             "Y": ((0.79, -0.015, 40), [1, 1, 1]),
+             "Z": ((0.75, -0.025, 30), [0, 0, 0]),
+             "edge_se3": ((0.82, -0.010, 45), [2, 2, 2]),
+             "edge_margin": ((0.77, -0.020, 36), [1, 1, 1])}
     for name, (vals, expected) in cases.items():
-        got = [gate2_score(v, bound[k], margin[k]) for v, k in zip(vals, ["cr", "er", "sp"])]
+        got = [gate2_score(v, se3[k], margin[k]) for v, k in zip(vals, ["cr", "er", "sp"])]
         assert got == expected, (name, got, expected)
-    for k, vals in calib.items():
-        assert all(gate2_score(v, bound[k], margin[k]) == 2 for v in vals), k
+
+    # Gate 4 G4-01: lower RP* is better, margin = max(25% of SE3's RP*, 1 EUR/MWh).
+    for rp_se3, rp_zone, expected in [(20, 18, 2), (20, 24, 1), (20, 25, 1), (20, 26, 0),
+                                      (0, 0.8, 1), (0, 1.5, 0), (0, 0, 2)]:
+        assert gate4_score(rp_zone, rp_se3) == expected, (rp_se3, rp_zone)
     assert gate2_score(float("nan"), 0.74, 0.05) == "ND"
 
     print("All PW03-MV-00 hand checks pass.")
