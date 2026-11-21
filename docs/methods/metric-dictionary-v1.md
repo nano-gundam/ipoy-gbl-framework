@@ -1,15 +1,16 @@
 # Metric dictionary v1: screening indicators
 
-Task: PW03-MV-00 (v0 was PW01-MV-03) · Author: Wenhao Gu · Review: Devika · For: Coding · Status: v1 draft, 16 Nov 2026
+Task: PW03-MV-00 (v0 was PW01-MV-03) · Author: Wenhao Gu · Review: Devika · For: Coding · Status: v1 draft, 16 Nov 2026, revised 21 Nov
 Path in repo: `docs/methods/metric-dictionary-v1.md` (replaces `metric-dictionary-v0.md`, which stays as history)
 
 **What changed in v1.**
 
 - **Zone rule (0.7).** Rewritten. Every zone is computed, and a multi-zone country is scored by its best qualifying zone. Italy uses its seven zonal prices, never the national PUN.
-- **Onshore capture rate (4).** New columns with onshore wind only, since Flower decided on 26 Oct to prioritise onshore. The GBL strikes and Gate 2 use these.
+- **Onshore wind only (0.1, 4, 6).** Wind means onshore wind (ENTSO-E B19) everywhere in this note. Offshore is out of scope and is not computed: no offshore input, no all-wind columns. The GBL strikes, Gate 2 and Gate 5 all use onshore.
 - **Capture-rate erosion (4b).** New indicator: the yearly trend of the onshore capture rate.
-- **Kept indicators and Gate 2 thresholds (8).** New section. Three indicators are scored, three are reported as context, and the rest stay in the table but are not used by any gate. The threshold rule is a proposal that follows the calibration idea of PW02-MV-03. If Devika's MV-03 method differs, hers wins.
-- Formulas in sections 1–6 and the fixtures in section 7 are unchanged, so code written against v0 still passes.
+- **Kept indicators and Gate 2 thresholds (8).** New section. Three indicators are scored, three are reported as context, and the rest stay in the table but are not used by any gate. Every zone is scored against **SE3 only**, the one benchmark. If Devika's MV-03 method differs, hers wins.
+- **21 Nov revision.** Calibration set cut to SE3 only (it was SE3, FI, DK1, DK2 and DE-LU), and offshore wind removed, as the team agreed.
+- Price, negative-price, spread and solar formulas and the fixtures in section 7 are unchanged. The only formula change from v0 is that wind is onshore only, so the v0 all-wind columns are gone.
 
 This note fixes how every screening indicator for Gate 2 (economics) and Gate 5 (growth) is calculated. The test is simple. Two people coding the same indicator from this text should get the same number. Where I had to make a choice that the brief left open, it is marked **[choice]** so the team can push back on it before the code is written.
 
@@ -25,12 +26,11 @@ It builds on the data-format rules in `docs/methods/harmonisation.md` (PW01-CD-0
 |---|---|---|---|
 | Day-ahead price | 12.1.D Energy prices | document A44 | `price_eur_mwh` |
 | Actual generation, solar | 16.1.B&C | PSR B16 | `gen_solar_mw` |
-| Actual generation, wind offshore | 16.1.B&C | PSR B18 | `gen_wind_offshore_mw` |
 | Actual generation, wind onshore | 16.1.B&C | PSR B19 | `gen_wind_onshore_mw` |
 | Actual total load | 6.1.A | document A65 | `load_mw` |
-| Installed capacity per type | 14.1.A | document A68, PSR B16, B18, B19, B25 | `cap_*_mw` |
+| Installed capacity per type | 14.1.A | document A68, PSR B16, B19, B25 | `cap_*_mw` |
 
-Everything is computed **per bidding zone** (SE3, DK1, DE-LU, ...). Country values are a separate step, see 0.7.
+Everything is computed **per bidding zone** (SE3, NL, DE-LU, ...). Country values are a separate step, see 0.7.
 
 ### 0.2 Time step
 
@@ -86,8 +86,6 @@ z = zone, y = year, h = hour, d = day. P_h = hourly day-ahead price (EUR/MWh). G
 | Netherlands, Spain, Poland, Lithuania | NL, ES, PL, LT | One zone each, nothing to choose |
 | Germany | DE-LU | One combined zone. Never replaced by a Germany-only price |
 | Italy | North, Centre-North, Centre-South, South, Calabria, Sicily, Sardinia | All seven computed. Best qualifying zone by the rule above. See below |
-| Denmark (calibration) | DK1, DK2 | Both are calibration zones in section 8, scored separately |
-| Finland (calibration) | FI | One zone |
 
 **Italy.**
 
@@ -194,11 +192,9 @@ Before Oct 2025 every slot is one hour, so neg_hours_equiv is simply the number 
 
 The denominator uses **the same hours** as the numerator. **[choice]** Otherwise a gap in the generation data would shift the ratio for no reason.
 
-**Wind** = onshore + offshore, G_h = `gen_wind_onshore_mw` + `gen_wind_offshore_mw`. If the zone has no offshore wind (installed offshore capacity is zero or not reported), offshore counts as 0. If the zone **does** have offshore wind and that hour's offshore value is missing, the hour is missing for wind.
+**Wind** = onshore wind only, G_h = `gen_wind_onshore_mw`. The reference portfolio is onshore only, so offshore is not part of any indicator. If a zone reports no onshore series, the wind columns are empty.
 
 **Solar** = `gen_solar_mw`.
-
-**Onshore wind (new in v1)** = `gen_wind_onshore_mw` only. Same formulas, including the non-negative variant. This is the version the GBL strikes and Gate 2 use, because the reference portfolio is onshore only (Flower, 26 Oct). Offshore stays in the data, to look at again in zones where offshore is about 10% of generation or more. If a zone reports no onshore series, the onshore columns are empty.
 
 **Variant used in the GBL PnL.** Flower's GBL note (8 Oct 2026) defines the capture price over hours with non-negative prices, because the PPA pays nothing in negative hours. So we report a second version as well:
 
@@ -208,11 +204,11 @@ The denominator uses **the same hours** as the numerator. **[choice]** Otherwise
 
 The denominator is still the all-hours baseload average, as in the GBL note, where the same P̄_DA appears in the cPPA leg.
 
-**Inputs.** Hourly day-ahead price, hourly generation by type, installed offshore capacity (only to decide whether offshore = 0).
+**Inputs.** Hourly day-ahead price, hourly onshore wind and solar generation.
 
 **Units.** Capture price in EUR/MWh. Capture rate is a ratio with no unit (report 0.85, not 85).
 
-**Output columns.** `capture_price_wind_eur_mwh`, `capture_rate_wind_ratio`, `capture_price_solar_eur_mwh`, `capture_rate_solar_ratio`, `capture_rate_nonneg_wind_ratio`, `capture_rate_nonneg_solar_ratio`, and new in v1: `capture_price_wind_onshore_eur_mwh`, `capture_rate_wind_onshore_ratio`, `capture_rate_nonneg_wind_onshore_ratio`.
+**Output columns.** `capture_price_wind_onshore_eur_mwh`, `capture_rate_wind_onshore_ratio`, `capture_rate_nonneg_wind_onshore_ratio`, `capture_price_solar_eur_mwh`, `capture_rate_solar_ratio`, `capture_rate_nonneg_solar_ratio`. These are the names already used in `metrics/gate2.py` (PW03-CD-01).
 
 **Special cases.**
 - Negative generation values (ENTSO-E sometimes reports small negative solar at night, which is the plant's own use). Set G_h = 0 for this indicator and count them in `n_neg_gen_fixed`. Devika's tests will also flag them.
@@ -284,7 +280,7 @@ A battery can follow a 15-minute price, so the native step is the right one to m
 
   cap_t,y = ENTSO-E 14.1.A installed capacity for technology t, for the year labelled y.
 
-- Wind = B18 + B19, with the same offshore rule as in section 4.
+- Wind = B19 (onshore only).
 - Solar = B16.
 - Battery = B25 (energy storage).
 
@@ -315,7 +311,7 @@ with first = 2019 and last = 2025, or the first and last years that have data, w
 
 **Units.** MW, %, ratio.
 
-**Output columns.** `cap_wind_mw`, `cap_solar_mw`, `cap_battery_mw`, `cap_growth_*_mw`, `cap_growth_*_pct`, `cap_cagr_*_ratio`, `load_peak_mw`, `cap_share_peak_*_ratio`.
+**Output columns.** `cap_wind_mw` (onshore), `cap_solar_mw`, `cap_battery_mw`, `cap_growth_*_mw`, `cap_growth_*_pct`, `cap_cagr_*_ratio`, `load_peak_mw`, `cap_share_peak_*_ratio`.
 
 **Special cases.**
 - Battery: B25 on ENTSO-E is patchy and in many zones simply not reported. Missing is **empty**, never 0. Most battery values will probably have to come from another source (national TSO lists or Flower). Until we have one, Gate 5 scores battery only where B25 exists, with `flag_battery_source = "entsoe"` or `"none"`.
@@ -335,13 +331,13 @@ These fixtures are small enough to check with a calculator. Lingyu's code should
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Price, EUR/MWh | 18.0 | 15.5 | 14.0 | 12.0 | 10.5 | 8.0 | 5.0 | 2.0 | 0.5 | −1.5 | −6.0 | −3.5 |
 | Solar, MW | 0 | 0 | 0 | 0 | 0 | 10 | 40 | 90 | 150 | 200 | 240 | 260 |
-| Wind, MW | 800 | 820 | 850 | 870 | 900 | 950 | 1000 | 1050 | 1100 | 1150 | 1180 | 1200 |
+| Onshore wind, MW | 800 | 820 | 850 | 870 | 900 | 950 | 1000 | 1050 | 1100 | 1150 | 1180 | 1200 |
 
 | Hour (local) | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Price, EUR/MWh | 0.0 | 1.0 | 4.0 | 9.0 | 16.0 | 24.0 | 32.0 | 38.5 | 35.0 | 28.0 | 22.0 | 19.0 |
 | Solar, MW | 260 | 240 | 200 | 150 | 90 | 40 | 10 | 0 | 0 | 0 | 0 | 0 |
-| Wind, MW | 1150 | 1100 | 1000 | 900 | 800 | 700 | 600 | 550 | 500 | 520 | 560 | 600 |
+| Onshore wind, MW | 1150 | 1100 | 1000 | 900 | 800 | 700 | 600 | 550 | 500 | 520 | 560 | 600 |
 
 Expected results, treating this one day as the whole period:
 
@@ -454,27 +450,27 @@ Gate 2 asks whether a zone's power market suits the reference portfolio, before 
 | Hourly volatility | `price_std_hourly_eur_mwh` | Risk for the GBL legs, revenue for the battery |
 | Negative-price time and depth | `neg_time_share_pct`, `neg_price_mean_eur_mwh` | The protection clause zeroes the PPA leg, while the baseload leg still buys at negative prices |
 
-**Kept in the table but not used by any gate.** Seasonal means, day-to-day volatility, solar capture rates (solar is not in the portfolio), all-wind and offshore capture rates (onshore only), the 2-hour spread (the battery is 4 hours) and the `_hourly` spread columns (check columns for the 15-minute step). Section 6 (growth) feeds Gate 5, not Gate 2.
+**Kept in the table but not used by any gate.** Seasonal means, day-to-day volatility, solar capture rates (solar is not in the portfolio), the 2-hour spread (the battery is 4 hours) and the `_hourly` spread columns (check columns for the 15-minute step). Section 6 (growth) feeds Gate 5, not Gate 2.
 
 ### 8.2 Threshold rule (proposal)
 
-The rule is calibrated on the five zones where Flower already trades: **SE3, FI, DK1, DK2 and DE-LU**. A rule that fails one of them is wrong, because Flower already makes those markets work.
+Every zone is compared with **SE3**, the only benchmark. Flower already trades GBL there, so a zone at least as good as SE3 on an indicator is a market Flower knows it can work in.
 
 For each scored indicator:
 
-1. **Bound** = the value of the weakest calibration zone (the lowest for "higher is better", the most negative for erosion).
-2. **Score 2**: at least as good as the bound.
-3. **Score 1**: worse than the bound, by no more than the margin (inclusive).
-4. **Score 0**: worse than the bound by more than the margin.
+1. **Reference** = SE3's value of that indicator, over the same window.
+2. **Score 2**: at least as good as SE3.
+3. **Score 1**: worse than SE3, by no more than the margin (inclusive).
+4. **Score 0**: worse than SE3 by more than the margin.
 5. **ND**: the indicator is empty, or carries `flag_low_coverage` or `flag_low_baseload`.
 
 | Check ID | Margin **[choice]** |
 |---|---|
 | G2-01 | 0.05 (five capture-rate points) |
 | G2-02 | 0.01 per year |
-| G2-03 | 20% of the bound |
+| G2-03 | 20% of SE3's value |
 
-By construction every calibration zone scores 2. Devika's MV-03 step then checks the rule against Flower's own ratings of its live markets (9 Oct). If Flower rates one of them as weak, the margins are too generous.
+SE3 itself always scores 2. With one reference market the margins carry more weight than before, so Devika's MV-03 step checks them against Flower's own view of SE3 (9 Oct ratings): if Flower sees SE3 as only just workable, the margins are too generous.
 
 **Gate 2 verdict**, as in the checklist:
 
@@ -486,17 +482,12 @@ By construction every calibration zone scores 2. Devika's MV-03 step then checks
 
 | Zone | G2-01 capture rate | G2-02 erosion | G2-03 spread 4h (EUR/MWh) |
 |---|---|---|---|
-| SE3 (calibration) | 0.82 | −0.010 | 45 |
-| FI (calibration) | 0.78 | −0.020 | 60 |
-| DK1 (calibration) | 0.80 | −0.015 | 70 |
-| DK2 (calibration) | 0.83 | −0.012 | 72 |
-| DE-LU (calibration) | 0.74 | −0.018 | 95 |
-| **Bound** | **0.74** | **−0.020** | **45** (margin 9) |
-| Zone X | 0.76 → **2** | −0.005 → **2** | 50 → **2** |
-| Zone Y | 0.71 → **1** | −0.025 → **1** | 40 → **1** |
-| Zone Z | 0.66 → **0** | −0.035 → **0** | 30 → **0** |
-| Edge: exactly 0.74 / −0.020 / 45 | **2** | **2** | **2** |
-| Edge: exactly 0.69 / −0.030 / 36 | **1** | **1** | **1** |
+| **SE3 (reference)** | **0.82** | **−0.010** | **45** (margin 9) |
+| Zone X | 0.86 → **2** | −0.005 → **2** | 50 → **2** |
+| Zone Y | 0.79 → **1** | −0.015 → **1** | 40 → **1** |
+| Zone Z | 0.75 → **0** | −0.025 → **0** | 30 → **0** |
+| Edge: exactly 0.82 / −0.010 / 45 | **2** | **2** | **2** |
+| Edge: exactly 0.77 / −0.020 / 36 | **1** | **1** | **1** |
 
 Verdicts: X and Y PASS. Z CONDITIONAL. Floating-point edge cases are compared with a tolerance of 1e-9.
 
@@ -512,4 +503,4 @@ Verdicts: X and Y PASS. Z CONDITIONAL. Floating-point edge cases are compared wi
 
 One row per zone × year, saved as `data/processed/indicators/screen_indicators.parquet`, with the columns named above plus `zone`, `year`, `coverage_price_pct`, and the flags `flag_low_coverage`, `flag_qh_source`, `flag_low_solar`, `flag_low_baseload`, `flag_battery_source`.
 
-New in v1: one row per zone, saved as `data/processed/indicators/gate2_scores.parquet`, with `zone`, `country`, `is_calibration`, `qualifies` (0.7), `cr_erosion_wind_onshore_per_year`, `n_erosion_years`, the three window means, the bounds and margins used, `g2_01_score`, `g2_02_score`, `g2_03_score` and `gate2_verdict`.
+New in v1: one row per zone, saved as `data/processed/indicators/gate2_scores.parquet`, with `zone`, `country`, `is_benchmark` (true for SE3), `qualifies` (0.7), `cr_erosion_wind_onshore_per_year`, `n_erosion_years`, the three window means, SE3's values and the margins used, `g2_01_score`, `g2_02_score`, `g2_03_score` and `gate2_verdict`.

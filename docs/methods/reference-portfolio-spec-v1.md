@@ -1,6 +1,6 @@
 # Reference portfolio specification v1, with the strike rule and the Gate 4 definitions
 
-Task: PW03-MV-00 · Author: Wenhao Gu · Review: Devika · Status: v1 draft, 16 Nov 2026 · Path in repo: `docs/methods/reference-portfolio-spec-v1.md`
+Task: PW03-MV-00 · Author: Wenhao Gu · Review: Devika · Status: v1 draft, 16 Nov 2026, revised 21 Nov · Path in repo: `docs/methods/reference-portfolio-spec-v1.md`
 
 This note replaces two v0 notes: `reference-portfolio-spec-v0.md` (PW02-MV-05) and `strike-rule-v0.md` (PW02-MV-04). Both stay in the repository as history. From now on the engine reads its portfolio, its strikes and its Gate 4 numbers from this one note, and the 30 November data lock freezes it. **[choice]** marks what the team or Flower can still change before the lock. Column names refer to `metric-dictionary-v1.md`.
 
@@ -9,7 +9,8 @@ This note replaces two v0 notes: `reference-portfolio-spec-v0.md` (PW02-MV-05) a
 - The strike rule is now section 2 of this note. The formulas are the same.
 - New section 4 defines Gate 4: expected value (EV), expected shortfall at 95% (ES95) and the implied risk premium, and how they give a Gate 4 score and verdict on the same scale as Gates 1, 3 and 5.
 - Markets follow the PW03 scope: SE3 is the benchmark, and the six initial countries are NL, DE-LU, ES, IT, PL and LT. Italy is scored by the zone rule in metric dictionary v1, section 0.7.
-- Onshore wind only and SE3 as the baseline (Flower, 26 Oct) are kept from v0.1.
+- Onshore wind only and SE3 as the baseline (Flower, 26 Oct) are kept from v0.1. Offshore wind is out of scope.
+- **21 Nov revision.** Gate 4 is scored against **SE3 only**. The earlier draft calibrated on SE3, FI, DK1, DK2 and DE-LU.
 - Anything Flower answers at the 16 Nov meeting goes into v1.1 before the lock. The questions still open are in section 6.
 
 ## 1. The portfolio
@@ -125,11 +126,11 @@ Gate 4 uses the same scale as the Gate 1, 3 and 5 checklist (`docs/sources/gate-
 
 | Check ID | Mandatory? | Metric | Scoring anchor (2 / 1 / 0 / ND) |
 |---|---|---|---|
-| G4-01 | Yes | RP* from the simulation, L = 0 | **2:** RP* ≤ the highest RP* among Flower's live markets (SE3, FI, DK1, DK2, DE-LU). **1:** above that, by no more than 25% **[choice]**. **0:** more than 25% above. **ND:** fewer than 200 simulated years, or `flag_low_ppa_price` |
+| G4-01 | Yes | RP* from the simulation, L = 0 | **2:** RP* ≤ SE3's RP*. **1:** above SE3's, by no more than the margin. **0:** more than the margin above. **ND:** fewer than 200 simulated years, or `flag_low_ppa_price` |
 | G4-02 | No | EV of the zero-margin contract | Context only, not scored |
 | G4-03 | No | ES95 at m = 0 | Context only, not scored. It feeds G4-01 |
 
-The bound in G4-01 follows the calibration idea of PW02-MV-03: a zone is at least as good as Flower's weakest live market, conditional within a margin of it, and below beyond that. If Devika's MV-03 method sets the margin differently, her method wins and this table follows it.
+G4-01 uses the same idea as Gate 2 (metric dictionary v1, section 8.2): SE3 is the one benchmark, because Flower already trades GBL there. A zone that needs no more premium than SE3 scores 2. **Margin [choice]:** 25% of SE3's RP*, but at least 1 EUR/MWh, so the rule still works if SE3's RP* is zero or close to it. If Devika's MV-03 method sets the margin differently, her method wins and this table follows it.
 
 **Verdict.** PASS if G4-01 = 2. CONDITIONAL if G4-01 = 1, 0 or ND. Gate 4 has **no hard KO** in v1, the same as Gates 3 and 5 in the checklist, so it cannot FAIL. One difference from the checklist is deliberate: there a Mandatory score of 1 can still PASS, but Gate 4 has only one Mandatory metric, so it needs a 2 **[choice]**.
 
@@ -163,6 +164,8 @@ New for Gate 4 (Fixture G, synthetic, 30 years, s = 0.4, P_PPA = 42.5 EUR/MWh in
 | Check | add m × 0.4 / 42.5 to every return and recompute ES95 | 0 and 0.10 |
 | Same returns, P_PPA,y = 40, 42.5, 45, 47.5, 50 repeating | bisection, L = 0 | **26.228571** EUR/MWh |
 
+G4-01 scoring (section 4.6), with SE3's RP* = 20 EUR/MWh (margin 5): a zone at 18 scores 2, at 24 or 25 scores 1, at 26 scores 0. With SE3's RP* = 0 the margin is the 1 EUR/MWh floor: 0.8 scores 1 and 1.5 scores 0.
+
 `python tests/hand_check_gate4.py --selftest` asserts every number in this table, the erosion check in metric dictionary v1 (section 4b) and its Gate 2 threshold test (section 8.3).
 
 ## 6. Questions for Flower, in the order that unlocks the most work
@@ -182,7 +185,7 @@ New for Gate 4 (Fixture G, synthetic, 30 years, s = 0.4, P_PPA = 42.5 EUR/MWh in
 - **EV.** The average return over all years. Close to zero is expected, because there is no margin.
 - **ES95.** Take the worst 5% of years and average their losses. ES95 = 0.24 means a bad year loses about a quarter of the yearly PPA payment.
 - **Implied risk premium.** How many euros per MWh Flower would have to add to the customer's price so that those bad years break even. The lower it is, the safer the country.
-- **Gate 4 verdict.** PASS if a country needs no more premium than Flower's riskiest live market (SE3, FI, DK1, DK2 or DE-LU). CONDITIONAL otherwise. Gate 4 never fails a country on its own.
+- **Gate 4 verdict.** PASS if a country needs no more premium than SE3, where Flower already trades GBL. CONDITIONAL otherwise. Gate 4 never fails a country on its own.
 
 ## Appendix B. Questions for the other groups
 
@@ -195,5 +198,5 @@ New for Gate 4 (Fixture G, synthetic, 30 years, s = 0.4, P_PPA = 42.5 EUR/MWh in
 
 **Market Analysis**
 
-1. For Flower's live markets (SE3, FI, DK1, DK2, DE-LU), do you have any evidence of the risk premium Flower or other sellers actually charge? It would tell us whether our RP* numbers are realistic.
+1. For SE3, do you have any evidence of the risk premium Flower or other sellers actually charge? It would tell us whether our RP* numbers are realistic.
 2. For Italy, which zones do you see as realistic for an onshore wind PPA? We use it to check the zone rule.
