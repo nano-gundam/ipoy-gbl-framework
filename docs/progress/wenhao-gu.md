@@ -22,7 +22,7 @@ Last updated: 21 Nov 2026
 ## Decisions from Flower that my documents depend on
 
 - 16 Oct: past years struck from realised day-ahead prices, future years from the curve on a stated evaluation date. No futures history.
-- 21 Nov (team): SE3 is the only benchmark for Gate 2 and Gate 4 thresholds, and offshore wind is out of scope.
+- 21 Nov (team): SE3 is the only benchmark for Gate 2 and Gate 4 thresholds, and offshore wind stays out of PW03 (kept for later, as Flower said on 26 Oct).
 - 26 Oct: onshore wind first, offshore kept for later (look again where offshore is about 10% of generation). SE3 is the Swedish baseline. Prices and wind data at bidding-zone level, rules at national level. Screen Italy's seven zones before detailed work.
 
 ## Still open with Flower (carried into PW03 / D13)

@@ -19,7 +19,7 @@ The same portfolio is simulated in every zone, so differences in results come fr
 
 | # | Parameter | Value | Status |
 |---|---|---|---|
-| 1 | Wind | 100 MW onshore. Hourly output G_h = the zone's ENTSO-E onshore generation (B19) scaled to 100 MW by installed onshore capacity | Size from Flower 9 Oct, onshore from 26 Oct. Confirm size |
+| 1 | Wind | 100 MW onshore. Hourly output G_h = the zone's ENTSO-E onshore generation (B19) scaled to 100 MW by installed onshore capacity | Size from Flower 9 Oct, onshore from 26 Oct. Confirm size. **Blocked on data:** installed onshore capacity per bidding zone (ENTSO-E 14.1.A, B19) is not downloaded yet (metric dictionary v1, 0.1) |
 | 2 | Expected output V_P50 | Median annual energy of the scaled onshore profile over 2019–2025 | **[choice]** |
 | 3 | Baseload share s | 40%, with 30% and 50% as sensitivities | **[choice]**, Flower's range is 30–50% |
 | 4 | Baseload volume B | s × V_P50 / H, fixed for the contract year (H = hours in the year) | GBL Explained, section 1 |
@@ -114,7 +114,7 @@ The margin is paid on the baseload volume only, so it adds m × B × H = m × s 
 
   RP* = max(0, (ES95(0) − L) × P_PPA / s)
 
-- **When P_PPA differs by year** (the back-test), returns move by different amounts and the worst years can change order. Then RP* is found by bisection on [0, 200] EUR/MWh to 0.001 EUR/MWh. ES95(m) falls as m rises, so bisection always works.
+- **When P_PPA differs by year** (the back-test), returns move by different amounts and the worst years can change order. Then RP* is found by bisection on [0, 200] EUR/MWh to 0.001 EUR/MWh. ES95(m) falls as m rises, so bisection always works. If even m = 200 does not bring ES95 down to L, RP* is left empty and the row carries `flag_rp_beyond_search`, rather than reporting 200.
 
 **The limit L.** Flower has not told us its risk appetite. Until it does, **L = 0** **[choice]**: the premium that makes the average of the worst 5% of years break even. It reads easily ("the price of making a bad year cost nothing") and needs no number from Flower. If Flower gives a limit, only L changes.
 
@@ -126,7 +126,7 @@ Gate 4 uses the same scale as the Gate 1, 3 and 5 checklist (`docs/sources/gate-
 
 | Check ID | Mandatory? | Metric | Scoring anchor (2 / 1 / 0 / ND) |
 |---|---|---|---|
-| G4-01 | Yes | RP* from the simulation, L = 0 | **2:** RP* ≤ SE3's RP*. **1:** above SE3's, by no more than the margin. **0:** more than the margin above. **ND:** fewer than 200 simulated years, or `flag_low_ppa_price` |
+| G4-01 | Yes | RP* from the simulation, L = 0 | **2:** RP* ≤ SE3's RP*. **1:** above SE3's, by no more than the margin. **0:** more than the margin above. **ND:** fewer than 200 simulated years, or `flag_low_ppa_price`, or SE3's own RP* is ND (then every zone is ND) |
 | G4-02 | No | EV of the zero-margin contract | Context only, not scored |
 | G4-03 | No | ES95 at m = 0 | Context only, not scored. It feeds G4-01 |
 
@@ -195,6 +195,7 @@ G4-01 scoring (section 4.6), with SE3's RP* = 20 EUR/MWh (margin 5): a zone at 1
 2. Which evaluation date will the first future-year run use? It has to be written on every result.
 3. Does metric dictionary v1's onshore-only capture rate (`capture_rate_nonneg_wind_onshore_ratio`) exist in the indicator table yet, or should the engine compute it?
 4. Who writes PnL_BESS, and when can Gate 4 expect its first numbers?
+5. Can you download installed capacity (ENTSO-E 14.1.A, A68) per bidding zone, at least onshore wind (B19) for the 13 screen zones? Section 1 cannot scale output to 100 MW without it.
 
 **Market Analysis**
 

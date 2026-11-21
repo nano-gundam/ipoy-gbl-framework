@@ -6,7 +6,7 @@ Path in repo: `docs/methods/metric-dictionary-v1.md` (replaces `metric-dictionar
 **What changed in v1.**
 
 - **Zone rule (0.7).** Rewritten. Every zone is computed, and a multi-zone country is scored by its best qualifying zone. Italy uses its seven zonal prices, never the national PUN.
-- **Onshore wind only (0.1, 4, 6).** Wind means onshore wind (ENTSO-E B19) everywhere in this note. Offshore is out of scope and is not computed: no offshore input, no all-wind columns. The GBL strikes, Gate 2 and Gate 5 all use onshore.
+- **Onshore wind only (0.1, 4, 6).** Wind means onshore wind (ENTSO-E B19) everywhere in this note. Offshore is out of scope for PW03 and is not computed: no offshore input, no all-wind columns. Flower asked on 26 Oct to keep offshore for later, so it can come back in a later version. The GBL strikes, Gate 2 and Gate 5 all use onshore.
 - **Capture-rate erosion (4b).** New indicator: the yearly trend of the onshore capture rate.
 - **Kept indicators and Gate 2 thresholds (8).** New section. Three indicators are scored, three are reported as context, and the rest stay in the table but are not used by any gate. Every zone is scored against **SE3 only**, the one benchmark. If Devika's MV-03 method differs, hers wins.
 - **21 Nov revision.** Calibration set cut to SE3 only (it was SE3, FI, DK1, DK2 and DE-LU), and offshore wind removed, as the team agreed.
@@ -29,6 +29,8 @@ It builds on the data-format rules in `docs/methods/harmonisation.md` (PW01-CD-0
 | Actual generation, wind onshore | 16.1.B&C | PSR B19 | `gen_wind_onshore_mw` |
 | Actual total load | 6.1.A | document A65 | `load_mw` |
 | Installed capacity per type | 14.1.A | document A68, PSR B16, B19, B25 | `cap_*_mw` |
+
+**Not downloaded yet: installed capacity per bidding zone (A68).** The only capacity data in the repo, `docs/sources/capacity_values_detail.csv`, is per country (SE, not SE3) and has no Italy. Section 6 and the 100 MW scaling in the reference portfolio spec (section 1) are blocked until Coding downloads A68 per bidding zone.
 
 Everything is computed **per bidding zone** (SE3, NL, DE-LU, ...). Country values are a separate step, see 0.7.
 
@@ -90,7 +92,7 @@ z = zone, y = year, h = hour, d = day. P_h = hourly day-ahead price (EUR/MWh). G
 **Italy.**
 
 - **Zonal prices only.** A wind PPA in Italy is settled against the zone where the park sits, so price, capture rate and spread all use the zonal day-ahead price and that zone's own onshore generation. The national PUN (PUN Index GME since 2025) is a consumer reference price and is not used.
-- **2019–2020.** Italy's zones were redrawn on 1 Jan 2021, and Calabria became a zone of its own then. For years before 2021 a zone may have no series or a different boundary. Those years are empty for that zone, not filled from a neighbour. So Italian multi-year indicators use 2021–2025, and this is written in every Italian table. Coding should confirm the start date of each Italian series in the CD-07 data.
+- **2019–2020.** Italy's zones were redrawn on 1 Jan 2021, and Calabria became a zone of its own then. In the CD-07 data, only Calabria has no series before 2021. The other six zones have prices for 2019–2020, but under the old boundaries, so those years do not describe the same area. They are left out **[choice]**, not filled from a neighbour. So Italian multi-year indicators use 2021–2025, and this is written in every Italian table.
 - **One scorecard.** Market Analysis keeps one Italy scorecard (gate checklist, section 6). The seven-zone numbers go into its Evidence cells. No zone is named the winner before the numbers are in.
 
 **Peak load and capacity** (section 6) can still be summed to country level, with peak load taken as the maximum of the summed hourly load, not the sum of zone peaks.
@@ -210,11 +212,13 @@ The denominator is still the all-hours baseload average, as in the GBL note, whe
 
 **Output columns.** `capture_price_wind_onshore_eur_mwh`, `capture_rate_wind_onshore_ratio`, `capture_rate_nonneg_wind_onshore_ratio`, `capture_price_solar_eur_mwh`, `capture_rate_solar_ratio`, `capture_rate_nonneg_solar_ratio`. These are the names already used in `metrics/gate2.py` (PW03-CD-01).
 
+**Flags per technology.** The 98% rule and the baseload average are taken over each technology's own hours H_y,t, so these flags carry the technology in their name: `flag_low_coverage_wind_onshore`, `flag_low_baseload_wind_onshore`, `flag_low_coverage_solar`, `flag_low_baseload_solar`, with `coverage_wind_onshore_pct` and `coverage_solar_pct` beside them. `flag_low_coverage` with no suffix is the price flag of 0.4. Same names as `metrics/gate2.py`.
+
 **Special cases.**
 - Negative generation values (ENTSO-E sometimes reports small negative solar at night, which is the plant's own use). Set G_h = 0 for this indicator and count them in `n_neg_gen_fixed`. Devika's tests will also flag them.
 - Gaps: the 98% rule applies to H_y,t.
 - Zones with almost no solar (SE1, SE2, NO zones, for example). Annual solar energy is Σ G_h over H_y,solar, in MWh. If it is below **100 GWh** **[choice]**, compute the number anyway but set `flag_low_solar = true`, and Gate 2 does not use it. If ENTSO-E has no solar series for the zone, the solar columns are empty.
-- Baseload average close to zero. If |baseload_t,y| < 5 EUR/MWh **[choice]**, the ratio is unstable. Report it, set `flag_low_baseload = true`, and let the gate look at capture price instead. This mostly affects northern Nordic zones in wet years.
+- Baseload average close to zero. If |baseload_t,y| < 5 EUR/MWh **[choice]**, the ratio is unstable. Report it, set `flag_low_baseload_<t> = true`, and let the gate look at capture price instead. This mostly affects northern Nordic zones in wet years.
 - 15-minute era: both price and generation use the hourly series.
 
 ---
@@ -235,7 +239,7 @@ with CR_y = `capture_rate_nonneg_wind_onshore_ratio` of year y, and ȳ, C̄R the
 
 **Special cases.**
 - At least **5 valid years** **[choice]**. With fewer, the slope is empty.
-- Years with `flag_low_baseload` are left out of Y, because their ratio is unstable.
+- Years with `flag_low_baseload_wind_onshore` are left out of Y, because their ratio is unstable. Years with `flag_low_coverage_wind_onshore` have no CR_y and drop out too.
 - A missing year is dropped, not interpolated. The slope uses the actual year numbers, so a gap does not bend the line.
 
 **Check.** CR = 0.90, 0.88, 0.87, 0.85, 0.86, 0.83, 0.81 for 2019–2025: Σ (y − ȳ)² = 28, Σ (y − ȳ)(CR − C̄R) = −0.38, slope **−0.013571** per year. Drop 2021 and the slope is **−0.013602**.
@@ -283,6 +287,8 @@ A battery can follow a 15-minute price, so the native step is the right one to m
 - Wind = B19 (onshore only).
 - Solar = B16.
 - Battery = B25 (energy storage).
+
+**Blocked in PW03.** 14.1.A is not downloaded per bidding zone yet (0.1), so this section cannot be computed for SE3 or the Italian zones until it is.
 
 ENTSO-E publishes 14.1.A once per year, and the value is meant to describe the start of that year. **[choice]** We use the label as it is and do not shift years. The growth labelled y is therefore mostly what was built during y − 1. Write this in any figure caption.
 
@@ -462,7 +468,7 @@ For each scored indicator:
 2. **Score 2**: at least as good as SE3.
 3. **Score 1**: worse than SE3, by no more than the margin (inclusive).
 4. **Score 0**: worse than SE3 by more than the margin.
-5. **ND**: the indicator is empty, or carries `flag_low_coverage` or `flag_low_baseload`.
+5. **ND**: the indicator is empty, or carries `flag_low_coverage_wind_onshore` or `flag_low_baseload_wind_onshore` (G2-01, G2-02), or `flag_low_coverage` (G2-03). If **SE3's own value** is ND on a check, there is no reference, so every zone is ND on that check.
 
 | Check ID | Margin **[choice]** |
 |---|---|
@@ -498,9 +504,10 @@ Verdicts: X and Y PASS. Z CONDITIONAL. Floating-point edge cases are compared wi
 3. **Battery capacity source.** ENTSO-E B25 is still too thin to score Gate 5 on its own (unchanged from v0).
 4. **GB.** Still depends on a non-ENTSO-E source converted to EUR per harmonisation.md. GB is outside the PW03 scope.
 5. **Solar threshold.** The 100 GWh cut-off only matters if solar comes back into the portfolio.
+6. **Installed capacity per zone.** A68 has to be downloaded per bidding zone for section 6 and for the 100 MW scaling in the reference portfolio (0.1). For Coding.
 
 ## Output tables (suggested)
 
-One row per zone × year, saved as `data/processed/indicators/screen_indicators.parquet`, with the columns named above plus `zone`, `year`, `coverage_price_pct`, and the flags `flag_low_coverage`, `flag_qh_source`, `flag_low_solar`, `flag_low_baseload`, `flag_battery_source`.
+One row per zone × year, saved as `data/processed/indicators/screen_indicators.parquet`, with the columns named above plus `zone`, `year`, `coverage_price_pct`, and the flags `flag_low_coverage`, `flag_qh_source`, `flag_low_solar`, `flag_low_coverage_<t>`, `flag_low_baseload_<t>` (section 4), `flag_battery_source`.
 
 New in v1: one row per zone, saved as `data/processed/indicators/gate2_scores.parquet`, with `zone`, `country`, `is_benchmark` (true for SE3), `qualifies` (0.7), `cr_erosion_wind_onshore_per_year`, `n_erosion_years`, the three window means, SE3's values and the margins used, `g2_01_score`, `g2_02_score`, `g2_03_score` and `gate2_verdict`.

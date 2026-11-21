@@ -35,7 +35,10 @@ def rp_closed_form(es0, limit, p_ppa, s):
 
 
 def rp_bisection(returns, p_ppa_by_year, s, limit, hi=200.0, tol=1e-3):
-    """P_PPA differs by year: find the smallest m with ES95(m) <= limit."""
+    """P_PPA differs by year: find the smallest m with ES95(m) <= limit.
+
+    Returns NaN (flag_rp_beyond_search) if even m = hi is not enough.
+    """
     r = np.asarray(returns, float)
     p = np.asarray(p_ppa_by_year, float)
 
@@ -44,6 +47,8 @@ def rp_bisection(returns, p_ppa_by_year, s, limit, hi=200.0, tol=1e-3):
 
     if es_at(0.0) <= limit:
         return 0.0
+    if es_at(hi) > limit:
+        return float("nan")
     lo = 0.0
     while hi - lo > tol / 10:
         mid = (lo + hi) / 2
@@ -63,10 +68,15 @@ def cr_erosion(years, cr, min_years=5):
     return float(((y - y.mean()) * (c - c.mean())).sum() / ((y - y.mean()) ** 2).sum())
 
 
+def _nd(x):
+    return x is None or (isinstance(x, float) and math.isnan(x))
+
+
 # Metric dictionary v1, section 8.2. SE3 is the reference value. Higher is
 # better for all three as stored: capture rate, erosion slope, spread.
+# No SE3 value means no reference, so every zone is ND.
 def gate2_score(value, bound, margin, tol=1e-9):
-    if value is None or (isinstance(value, float) and math.isnan(value)):
+    if _nd(value) or _nd(bound):
         return "ND"
     worse = bound - value
     if worse <= tol:
@@ -78,7 +88,7 @@ def gate2_score(value, bound, margin, tol=1e-9):
 
 # Reference portfolio spec v1, section 4.6 (G4-01): lower RP* is better.
 def gate4_score(rp_zone, rp_se3, tol=1e-9):
-    if rp_zone is None or (isinstance(rp_zone, float) and math.isnan(rp_zone)):
+    if _nd(rp_zone) or _nd(rp_se3):
         return "ND"
     margin = max(0.25 * rp_se3, 1.0)
     worse = rp_zone - rp_se3
@@ -109,12 +119,16 @@ def selftest():
     assert abs(rp10 * s * v_p50 - 595_000) < 1e-3
     shifted = np.asarray(FIXTURE_G) + rp0 * s / p_ppa
     assert abs(es95(shifted) - 0.0) < TOL
+    shifted10 = np.asarray(FIXTURE_G) + rp10 * s / p_ppa
+    assert abs(es95(shifted10) - 0.10) < TOL
 
     p_by_year = [40 + (i % 5) * 2.5 for i in range(len(FIXTURE_G))]
     rp_b = rp_bisection(FIXTURE_G, p_by_year, s, 0.0)
     assert abs(rp_b - 26.228571) < 1e-3, rp_b
     # Same P_PPA in every year: bisection must agree with the closed form.
     assert abs(rp_bisection(FIXTURE_G, [p_ppa] * 30, s, 0.0) - rp0) < 1e-3
+    # A cap too low to reach L: empty, not the cap (flag_rp_beyond_search).
+    assert math.isnan(rp_bisection(FIXTURE_G, p_by_year, s, 0.0, hi=20.0))
 
     years = list(range(2019, 2026))
     cr = [0.90, 0.88, 0.87, 0.85, 0.86, 0.83, 0.81]
@@ -140,6 +154,9 @@ def selftest():
                                       (0, 0.8, 1), (0, 1.5, 0), (0, 0, 2)]:
         assert gate4_score(rp_zone, rp_se3) == expected, (rp_se3, rp_zone)
     assert gate2_score(float("nan"), 0.74, 0.05) == "ND"
+    # SE3 itself ND: no reference, so every zone is ND.
+    assert gate2_score(0.80, float("nan"), 0.05) == "ND"
+    assert gate4_score(10.0, float("nan")) == "ND"
 
     print("All PW03-MV-00 hand checks pass.")
 
